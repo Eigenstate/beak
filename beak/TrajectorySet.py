@@ -25,7 +25,7 @@ import vmd
 import os
 import readline
 from glob import glob
-from Molecule import *
+from Molecule import Molecule
 from atomsel import atomsel
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -80,7 +80,7 @@ class TrajectorySet(object):
         matching the specified psf file.
         '''
 
-        for replicate in os.listdir(os.path.abspath(directory)):
+        for replicate in os.listdir(os.path.abspath(self.directory)):
             sim = Molecule()
             sim.load(os.path.abspath(self.psf))
             sim.rename("%s_%d" % (self.name, int(sim)))

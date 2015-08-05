@@ -23,7 +23,7 @@ Boston, MA 02111-1307, USA.
 from __future__ import print_function
 import vmd
 import axes, display
-import MoleculeRep
+from Molecule import MoleculeRep
 from beak import TrajectorySet
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
