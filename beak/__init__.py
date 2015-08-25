@@ -3,6 +3,10 @@
 __version__ = '0.0.0a1'
 __author__  = 'Robin Betz'
 
-from TrajectorySet import *
-from visualize import *
+import visualize
+
+from beak.Analyzer import Analyzer
+from beak.MinDistanceAnalyzer import MinDistanceAnalyzer
+from beak.RmsdAnalyzer import RmsdAnalyzer
+from beak.TrajectorySet import TrajectorySet
 

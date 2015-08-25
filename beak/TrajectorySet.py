@@ -43,17 +43,28 @@ class TrajectorySet(object):
         ligand (str): Residue name of the ligand
         trajectories (list of Molecule): Molecule for loaded replicates
         reference (Molecule): Molecule for reference structure
+        save_frequency (float): Frequency file was written to, in ps
+        times (list of floats): Time in ps when each loaded frame was written
+        stride (int): Stride for reading from data file
+        color (str): Color to graph this replicate set in
+        reimaged (bool): Whether to load the reimaged 
     """
 
     #==========================================================================
 
-    def __init__(self):
-        self.name = ""
-        self.psf = ""
-        self.directory = ""
-        self.ligand = ""
+    def __init__(self, name=None, psf=None, directory=None, ligand=None,
+                 stride=None, save_frequency=None, color=None):
+        self.name = name
+        self.psf = psf
+        self.directory = directory
+        self.ligand = ligand
+        self.color = color
+        self._stride = stride
+        self._save_frequency = save_frequency
+
         self.trajectories = []
         self.reference = Molecule()
+        self.times = []
 
         # Ask user what to load, then load
         self._prompt_for_paths()
@@ -79,8 +90,11 @@ class TrajectorySet(object):
         Loads all replicates found in a top-level directory
         matching the specified psf file.
         '''
-
-        for replicate in os.listdir(os.path.abspath(self.directory)):
+       
+        thedir = os.path.abspath(self.directory)
+        dirs = [name for name in os.listdir(thedir) if \
+                os.path.isdir(os.path.join(thedir,name))]
+        for replicate in dirs:
             sim = Molecule()
             sim.load(os.path.abspath(self.psf))
             sim.rename("%s_%d" % (self.name, int(sim)))
@@ -91,8 +105,13 @@ class TrajectorySet(object):
             prods.sort()
             for p in prods:
                 if "reimaged" in p: continue
-                sim.load(p, filetype='netcdf', step=10, waitfor=-1)
+                sim.load(p, filetype='netcdf', step=self._stride, waitfor=-1)
             self.trajectories.append(sim)
+
+        # Calculate times
+        time_per_frame = self._stride * self._save_frequency
+        max_len = max([ r.numFrames() for r in self.trajectories])
+        self.times = [i*time_per_frame/1000. for i in range(max_len)]
 
     #==========================================================================
 
@@ -109,14 +128,20 @@ class TrajectorySet(object):
         readline.set_completer(complete)
 
         # Prompt for stuff
-        print("Where is the psf file?")
-        self.psf = raw_input()
-        print("Where is the production directory?")
-        self.directory = raw_input()
-        print("What is the name of this trajectory set?")
-        self.name = raw_input()
-        print("What is the resname of the ligand?")
-        self.ligand = raw_input()
+        if not self.psf:
+            self.psf = raw_input("Where is the psf file?")
+        if not self.directory:
+            self.directory = raw_input("Where is the production directory? ")
+        if not self.name:
+            self.name = raw_input("What is the name of this trajectory set? ")
+        if not self.ligand:
+            self.ligand = raw_input("What is the resname of the ligand? ")
+        if not self.color:
+            self.color = raw_input("What color should this set be when graphed? ")
+        if not self._save_frequency:
+            self._save_frequency = float(raw_input("What is the save interval, in ps?"))
+        if not self._stride:
+            self._stride = int(raw_input("What should the stride for loading be?"))
 
     #==========================================================================
 
