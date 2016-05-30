@@ -14,20 +14,20 @@ def get_protein_residues(psf):
 
     Args:
         psf (str): Path to the psf file
-    Returns: (str) String of residues for anchor, in prmtop numbers
+    Returns: (str) String of residues for anchor
     """
     molid = molecule.load('psf', psf)
-    resids = set(atomsel('pfrag 1', molid=molid).get('residue'))
-    return ",".join([str(x+1) for x in resids])
+    start = min(atomsel('resname ACE').get('residue'))
+    end = min(atomsel('resname NMA').get('residue'))
+    return ":%s-%s" % (start, end)
 
-def reimage(prmtop, psf, thedir):
+def reimage(psf, thedir):
     """
     Reimages all Prod_[0-9]*.nc files in a given directory
     into one Prod_all_reimaged.nc file, with the protein at
     the center
 
     Args:
-        prmtop (str): Path to the topology file
         psf (str): Path to the psf file, used to identify protein
         thedir (str): Path to directory containing all replicates
 
@@ -37,8 +37,8 @@ def reimage(prmtop, psf, thedir):
         ValueError if the cpptraj call fails
     """
     # Error checking
-    if not os.path.isfile(prmtop):
-        raise IOError("%s not a valid file" % prmtop)
+    if not os.path.isfile(psf):
+        raise IOError("%s not a valid file" % psf)
     if not os.path.isdir(thedir):
         raise IOError("%s not a valid directory" % thedir)
 
@@ -57,26 +57,26 @@ def reimage(prmtop, psf, thedir):
         prods.sort()
         for p in prods:
             if "reimaged" in p: continue
-            tempfile.write("trajin %s offset 10\n" % p)
+            tempfile.write("trajin %s offset 20\n" % p)
+            #tempfile.write("trajin %s\n" % p)
 
         protein_residues = get_protein_residues(psf)
 
-        tempfile.write("autoimage anchor :%s\n" % protein_residues)
+        tempfile.write("autoimage anchor %s mobile ':TIP3|:SOD|:CLA'\n" % protein_residues)
         tempfile.write("trajout %s/Prod_all_reimaged.nc\n" % os.path.join(thedir, replicate))
         tempfile.write("go\n")
 
-        os.system("%s/bin/cpptraj -p %s < tempfile" % (os.environ['AMBERHOME'], prmtop))
+        os.system("%s/bin/cpptraj -p %s < tempfile" % (os.environ['AMBERHOME'], psf))
         #if subprocess.check_call("%s/bin/cpptraj -p %s < tempfile" % (os.environ['AMBERHOME'], prmtop)):
         #    raise ValueError("Error converting replicate %s" % replicate)
 
 if __name__ == "__main__":
     # Process args
-    if len(sys.argv) != 4:
-        print("Usage: %s <prmtop> <psf> <folder>" % sys.argv[0])
+    if len(sys.argv) != 3:
+        print("Usage: %s <psf> <folder>" % sys.argv[0])
         quit(1)
 
-    prmtop = os.path.abspath(sys.argv[1])
-    psf = os.path.abspath(sys.argv[2])
-    thedir = os.path.abspath(sys.argv[3])
-    reimage(prmtop, psf, thedir)
+    psf = os.path.abspath(sys.argv[1])
+    thedir = os.path.abspath(sys.argv[2])
+    reimage(psf, thedir)
 

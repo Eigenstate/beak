@@ -63,7 +63,11 @@ class Analyzer(object):
 
         # Prompt for any number of trajectories
         uinput = ""
-        self.data = data
+        self.data = []
+        try:
+            self.data.extend(data)
+        except:
+            self.data = [ data ]
         self.times = {}
         self.colors = {}
         self._calc = {}
@@ -90,8 +94,7 @@ class Analyzer(object):
             (self._calc[dat.name], self._refs[dat.name]) = self._analyze_one(dat)
             self.times[dat.name] = dat.times
             self.colors[dat.name] = dat.color
-
-        pass
+        return self._calc
 
     #==========================================================================
 
@@ -133,11 +136,11 @@ class Analyzer(object):
             self.analyze()
 
         # Prompt for plot info if not set
-        if not title:
+        if title is None:
             title = raw_input("What should the plot title be? > ")
-        if not xlabel:
+        if xlabel is None:
             xlabel = raw_input("What should the plot xlabel be? > ")
-        if not ylabel:
+        if ylabel is None:
             ylabel = raw_input("What should the plot ylabel be? > ")
 
         (figure, axes) = plt.subplots()
@@ -159,11 +162,13 @@ class Analyzer(object):
                           linewidth=1.0, label=l)
                 i = 1
             # Plot reference value
-            axes.plot((0,len(self.times)),
-                      (self._refs[label], self._refs[label]),
-                      '--', linewidth=1.5, color=self.colors[label])
+            axes.plot([0,self.times[label][-1]],
+                      [self._refs[label], self._refs[label]],
+                       linestyle='--', linewidth=1.0,
+                       color=self.colors[label])
             print("REFERENCE = %f" % self._refs[label])
         axes.legend()
+        #axes.set_xlim([0, self.times[
 
         return figure
 
@@ -189,15 +194,18 @@ def sliding_mean(data_array, window=5):
         raise ValueError("data_array must be numpy array or list")
     if data_array.ndim != 1:
         raise ValueError("data_array must be one dimensional!")
+    if not window & 1:
+        raise ValueError("Need odd number window")
 
+    box = int((window-1)/2.)
     new_list = numpy.empty((len(data_array)))
     for i in range(len(data_array)):
-        indices = range(max(i - window + 1, 0),
-                        min(i + window + 1, len(data_array)))
+        indices = range(max(i - box, 0),
+                        min(i + box + 1, len(data_array)))
         avg = 0
         for j in indices:
             avg += data_array[j]
-        avg /= float(len(indices))
+        avg /= float(window)
         new_list[i] = avg
 
     return new_list
@@ -229,7 +237,7 @@ def get_threshold_percent(array, threshold):
     a = array[array < threshold]
     return float(a)/float(len(array))*100.0
 
-#==============================================================================
+#==========================================================================
 
 def get_distance(x, y):
     """

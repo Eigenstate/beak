@@ -48,13 +48,14 @@ class RmsdAnalyzer(Analyzer):
     """
     #==========================================================================
 
-    def __init__(self, data=None, selection=None):
+    def __init__(self, data=None, selection=None, refmol=None):
         super(RmsdAnalyzer, self).__init__(data)
 
         # Prompt for RMSD selection
         self.sel = selection
         if not self.sel:
             self.sel = raw_input("What's the selection to get RMSD of? > ")
+        self.refmol = refmol
 
     #==========================================================================
 
@@ -79,9 +80,14 @@ class RmsdAnalyzer(Analyzer):
             raise ValueError("Not a trajectory set")
 
         data = []
-        refsel = atomsel(self.sel, molid=int(trajset.reference))
+        if not self.refmol:
+            refsel = atomsel(self.sel, molid=int(trajset.reference))
+        else:
+            refsel = atomsel(self.sel, molid=self.refmol)
+        print(refsel.get('mass'))
         for rep in trajset.trajectories:
             framesel = atomsel(self.sel, molid=int(rep))
+            print(framesel.get('mass'))
             array = np.empty((rep.numFrames()))
             for i in range(rep.numFrames()):
                 rep.setFrame(i)

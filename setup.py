@@ -3,7 +3,7 @@ from distutils.core import setup
 import os
 import sys
 
-packages = ['beak']
+packages = ['beak', 'beak.rendertools']
 scripts = []
 package_data = {
         }

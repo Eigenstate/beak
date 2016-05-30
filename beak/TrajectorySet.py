@@ -47,13 +47,14 @@ class TrajectorySet(object):
         times (list of floats): Time in ps when each loaded frame was written
         stride (int): Stride for reading from data file
         color (str): Color to graph this replicate set in
-        reimaged (bool): Whether to load the reimaged 
+        reimaged (bool): Whether to load the reimaged single glob trajectory
+            instead of individual Prod_[0-9]*.nc files
     """
 
     #==========================================================================
 
     def __init__(self, name=None, psf=None, directory=None, ligand=None,
-                 stride=None, save_frequency=None, color=None):
+                 stride=None, save_frequency=None, color=None, reimaged=True):
         self.name = name
         self.psf = psf
         self.directory = directory
@@ -61,6 +62,7 @@ class TrajectorySet(object):
         self.color = color
         self._stride = stride
         self._save_frequency = save_frequency
+        self.reimaged = reimaged
 
         self.trajectories = []
         self.reference = Molecule()
@@ -70,7 +72,7 @@ class TrajectorySet(object):
         self._prompt_for_paths()
         self._load_production_data()
         self._load_reference_data()
-        self._align_trajectories()
+        #self._align_trajectories()
 
     #==========================================================================
 
@@ -79,7 +81,13 @@ class TrajectorySet(object):
         Loads reference structure matching name of input psf
         '''
         self.reference.load(filename=self.psf, filetype='psf')
-        self.reference.load(filename=self.psf.replace("_trans.psf", ".pdb"),
+
+        #if os.path.isfile(self.psf.replace("_trans.psf", ".pdb")):
+        #    print("LOADING TRANS")
+        #    self.reference.load(filename=self.psf.replace("_trans.psf", ".pdb"),
+        #                        filetype='pdb')
+        #else:
+        self.reference.load(filename=self.psf.replace(".psf", ".pdb"),
                             filetype='pdb')
         self.reference.rename(self.name + "_ref")
 
@@ -89,6 +97,9 @@ class TrajectorySet(object):
         '''
         Loads all replicates found in a top-level directory
         matching the specified psf file.
+
+        Raises:
+            IOError: if a reimaged file isn't found and we are looking for it
         '''
        
         thedir = os.path.abspath(self.directory)
@@ -96,16 +107,23 @@ class TrajectorySet(object):
                 os.path.isdir(os.path.join(thedir,name))]
         for replicate in dirs:
             sim = Molecule()
-            sim.load(os.path.abspath(self.psf))
+            sim.load(os.path.abspath(self.psf), filetype='psf')
             sim.rename("%s_%d" % (self.name, int(sim)))
 
-            # Read in production data, reimaged
-            prods = glob(os.path.join(self.directory, replicate,
-                         "Prod_[0-9]*.nc"))
-            prods.sort()
-            for p in prods:
-                if "reimaged" in p: continue
+            if self.reimaged:
+                p = glob(os.path.join(self.directory, replicate, "Reimaged*.nc"))[0]
+                #p = os.path.join(self.directory, replicate, "Prod_all_reimaged.nc")
+                if not p or not os.path.isfile(p):
+                    raise IOError("No reimaged file %s" % p)
                 sim.load(p, filetype='netcdf', step=self._stride, waitfor=-1)
+            else:
+                # Read in production data, reimaged
+                prods = glob(os.path.join(self.directory, replicate,
+                             "Prod_[0-9]*.nc"))
+                prods.sort()
+                for p in prods:
+                    if "reimaged" in p: continue
+                    sim.load(p, filetype='netcdf', step=self._stride, waitfor=-1)
             self.trajectories.append(sim)
 
         # Calculate times
@@ -129,19 +147,19 @@ class TrajectorySet(object):
 
         # Prompt for stuff
         if not self.psf:
-            self.psf = raw_input("Where is the psf file?")
+            self.psf = raw_input("Where is the psf file? > ").strip()
         if not self.directory:
-            self.directory = raw_input("Where is the production directory? ")
+            self.directory = raw_input("Where is the production directory? > ").strip()
         if not self.name:
-            self.name = raw_input("What is the name of this trajectory set? ")
+            self.name = raw_input("What is the name of this trajectory set? > ").strip()
         if not self.ligand:
-            self.ligand = raw_input("What is the resname of the ligand? ")
+            self.ligand = raw_input("What is the resname of the ligand? > ").strip()
         if not self.color:
-            self.color = raw_input("What color should this set be when graphed? ")
+            self.color = raw_input("What color should this set be when graphed? > ").strip()
         if not self._save_frequency:
-            self._save_frequency = float(raw_input("What is the save interval, in ps?"))
+            self._save_frequency = float(raw_input("What is the save interval, in ps? > "))
         if not self._stride:
-            self._stride = int(raw_input("What should the stride for loading be?"))
+            self._stride = int(raw_input("What should the stride for loading be? > "))
 
     #==========================================================================
 

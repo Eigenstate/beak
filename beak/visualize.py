@@ -24,16 +24,16 @@ from __future__ import print_function
 import vmd
 import axes, display
 from Molecule import MoleculeRep
-from beak import TrajectorySet
+from beak.TrajectorySet import TrajectorySet 
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-def go():
+def go(reimaged=False):
     """
     Visualizes a trajectory set with standard representations
     """
     # Load data
-    data = TrajectorySet()
+    data = TrajectorySet(reimaged=reimaged)
 
     # Turn off display updating while we make changes
     axes.set_location("OFF")
