@@ -121,7 +121,7 @@ class MinDistanceAnalyzer(Analyzer):
 
     #==========================================================================
 
-    def plot(self, title=None, xlabel="Time (ns)", ylabel=None):
+    def plot(self, title=None, xlabel="Time (ns)", ylabel=None, smoothing=5):
         """
         Creates a nice plot of the data returned from analysis
 
@@ -137,7 +137,7 @@ class MinDistanceAnalyzer(Analyzer):
             ValueError if a data array has more than 2 columns
         """
         
-        return super(MinDistanceAnalyzer, self).plot(title, xlabel, ylabel)
+        return super(MinDistanceAnalyzer, self).plot(title, xlabel, ylabel, smoothing)
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
