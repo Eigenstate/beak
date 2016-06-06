@@ -205,7 +205,7 @@ def sliding_mean(data_array, window=5):
         avg = 0
         for j in indices:
             avg += data_array[j]
-        avg /= float(window)
+        avg /= len(indices)
         new_list[i] = avg
 
     return new_list
