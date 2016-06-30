@@ -99,6 +99,14 @@ def reimage(psf, revision, skip, alleq, align):
         if os.path.isfile(ofile):
             print("EXISTS reimaged file for Rev %s Rep %s" % (revision, replicate))
             continue
+        else:
+            if alleq:
+                rems = glob(os.path.join("production", revision, replicate, "Reimaged_Eq1_to_*_skip_%s.nc" % skip))
+            else:
+                rems = glob(os.path.join("production", revision, replicate, "Reimaged_Eq6_to_*_skip_%s.nc" % skip))
+            for r in rems:
+                print("Removing: %s" % r)
+                os.remove(r)
 
         # Now write cpptraj input
         tempfile = open('production/%s/tempfile' % os.path.join(revision, replicate), 'w')
