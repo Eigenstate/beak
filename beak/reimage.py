@@ -120,10 +120,10 @@ def reimage(psf, revision, skip, alleq, align):
                     glob("equilibration/%s/Eq_[0-5]*.nc" % revision) if "imaged" not in x ]
             eqs.sort(key=int)
             for e in eqs:
-                tempfile.write("trajin equilibration/%s/Eq_%s.nc offset %d\n" % (revision, e, int(skip)*8))
+                tempfile.write("trajin equilibration/%s/Eq_%s.nc 1 last %d\n" % (revision, e, int(skip)*8))
 
         # Last equilibration in 
-        tempfile.write("trajin production/%s/%s/Eq_6.nc offset %d\n" % (revision, replicate, int(skip)*8))
+        tempfile.write("trajin production/%s/%s/Eq_6.nc 1 last %d\n" % (revision, replicate, int(skip)*8))
 
         # Read in production data, reimaged
         for p in prods:
