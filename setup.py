@@ -3,8 +3,8 @@ from distutils.core import setup
 import os
 import sys
 
-packages = ['beak', 'beak.rendertools']
-scripts = []
+packages = ['beak', 'beak.render', 'beak.analyzers', 'beak.msm']
+scripts = ['beak/reimage.py']
 package_data = {
         }
 

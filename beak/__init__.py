@@ -5,12 +5,10 @@ __author__  = 'Robin Betz'
 
 import visualize
 
-from beak.Analyzer import Analyzer
-from beak.MinDistanceAnalyzer import MinDistanceAnalyzer
-from beak.RmsdAnalyzer import RmsdAnalyzer
-from beak.DihedralAnalyzer import DihedralAnalyzer
 from beak.TrajectorySet import TrajectorySet
 from beak.mobility import *
 
-from beak.rendertools import *
+from beak.render import *
+from beak.msm import *
+from beak.analyze import *
 
