@@ -36,7 +36,7 @@ def get_ligand_residues(molid, topology, ligands):
 
 #==============================================================================
 
-def set_alps_user(data, molids, topology, ligands, featidx):
+def color_ligands(data, molids, topology, ligands, featidx):
     """
     Sets the user field of each alprenolol molecule according to the
     values in data, on a per frame basis.
@@ -200,8 +200,6 @@ def set_representations(ids, ligands, clear=True):
         ligands (list of int): Ligand IDs, in order
         clear (bool): Whether to delete previous representations
     """
-    import molrep
-    from VMD import evaltcl
 
     for m in ids:
         # Clear existing representations
@@ -216,42 +214,45 @@ def set_representations(ids, ligands, clear=True):
             evaltcl("mol scaleminmax %d %d 0.0 1.0" % (m, molrep.num(m)-1))
 
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-#                        PROJECT-SPECIFIC METHODS                            +
+#                                  LOADERS                                   #
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-def load_alp_binding():
+def load_data(filenames, identifiers, topology, stride):
     """
-    Loads the alprenolol binding event trajectories.
-    
+    Loads a given set of trajectories
+
+    Args:
+        filenames (list of str): Path of files to load
+        identifiers (list of str): Molecule name for each file
+        topology (str): Topology to load
+        stride (int): Number of frames to downsample
+
     Returns:
-        (dict str -> int): Trajectory identifier, VMD molecule IDs loaded
+        (dict str->int) Molecule name and VMD molid
     """
 
-    filenames = [ 
-                 "pnasc/DESRES-Trajectory_pnas2011a-C-5-no-water-no-lipid/pnas2011a-C-5-no-water-no-lipid/pnas2011a-C-5-no-water-no-lipid-000.dcd",
-                 "pnasc/DESRES-Trajectory_pnas2011a-C-5-no-water-no-lipid/pnas2011a-C-5-no-water-no-lipid/pnas2011a-C-5-no-water-no-lipid-001.dcd",
-                 "pnasc/DESRES-Trajectory_pnas2011a-C-9-no-water-no-lipid/pnas2011a-C-9-no-water-no-lipid/pnas2011a-C-9-no-water-no-lipid-000.dcd",
-                 "pnasc/DESRES-Trajectory_pnas2011a-C-9-no-water-no-lipid/pnas2011a-C-9-no-water-no-lipid/pnas2011a-C-9-no-water-no-lipid-001.dcd"
-                ]
-    identifiers = ["C5-0", "C5-1", "C9-0", "C9-1"]
     loaded = {}
     for i,f in enumerate(filenames):
-       loaded[identifiers[i]] = molecule.load("psf","C.psf") 
-       molecule.read(loaded[identifiers[i]], 'dcd', f, skip=10, waitfor=-1)
+       filetype = f[-3:]
+       loaded[identifiers[i]] = molecule.load(topology[-3:], topology)
+       molecule.read(loaded[identifiers[i]], filetype, f, skip=stride, waitfor=-1)
        molecule.rename(loaded[identifiers[i]], identifiers[i])
     return loaded
 
 #==============================================================================
 
-def load_topology():
+def load_topology(filename, topology):
     """
-    Loads the topology
+    Loads the topology as a mdtraj object
+
+    Args:
+        filename (str): A trajectory file to attach topology to
+        topology (str): The topology to load
 
     Returns:
         (mdtraj Topology) topology
     """
-    import mdtraj as md
-    a = md.load("pnasc/DESRES-Trajectory_pnas2011a-C-5-no-water-no-lipid/pnas2011a-C-5-no-water-no-lipid/pnas2011a-C-5-no-water-no-lipid-000.dcd", top="C.psf", stride=1000)
-    return a.topology
+    t = md.load(filename, top=topology, stride=1000)
+    return t.topology
 
 #==============================================================================
