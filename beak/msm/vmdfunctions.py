@@ -47,17 +47,17 @@ def color_ligands(data, molids, topology, ligands, featidx):
     """
     assert len(data) == len(ligands)*len(molids)
 
+    # Normalize the feature across all trajectories
+    minl = min(min(d[:,featidx]) for d in data)
+    rge = max(max(d[:,featidx]) for d in data) - minl
+
     for mx,m in enumerate(molids):
         sels = [ atomsel("residue %d" % l, m) for l in ligands ]
         for i,s in enumerate(sels):
             assert len(data[mx*len(ligands)+i]) == molecule.numframes(m)
 
-            minl = min(data[mx*len(ligands)+i][:,featidx])
-            rge = max(data[mx*len(ligands)+i][:,featidx]) - minl
             dat = (data[mx*len(ligands)+i][:,featidx] - minl)/rge
             assert len(dat) == molecule.numframes(m)
-            assert max(dat) == 1.0
-            assert min(dat) == 0.0
 
             for f in range(molecule.numframes(m)):
                 molecule.set_frame(m, f)
