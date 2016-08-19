@@ -68,6 +68,7 @@ def reimage(psf, revision, skip, alleq, align):
         IOError if the replicate directory is not present or empty
         ValueError if the cpptraj call fails
     """
+    revision = str(revision)
     # Error checking
     if not os.path.isfile(psf):
         raise IOError("%s not a valid file" % psf)
