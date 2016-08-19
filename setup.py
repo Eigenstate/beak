@@ -8,9 +8,9 @@ scripts = ['beak/reimage.py']
 package_data = {
         }
 
-setup(name='dabble',
+setup(name='beak',
       version='1.0.0a1',
-      description='Membrane protein system builder',
+      description='Robins scripts',
       author='Robin Betz',
       author_email='robin@robinbetz.com',
       url='http://robinbetz.com',
