@@ -51,7 +51,7 @@ def check_empty(filename):
     if match is None: return True
     m2 = r2.search(match.group()) 
     if m2 is None: return True
-    return bool(int(m2.group()))
+    return not bool(int(m2.group()))
 
 #==============================================================================
 def get_protein_residues(psf):
@@ -130,8 +130,10 @@ def reimage(psf, revision, skip, alleq, align):
             else:
                 rems = glob(os.path.join("production", revision, replicate, "Reimaged_Eq6_to_*_skip_%s.nc" % skip))
             for r in rems:
-                print("Removing: %s" % r)
-                os.remove(r)
+                num = r.split('_')[3]
+                if num <= prods[-1]:
+                    print("Removing: %s" % r)
+                    os.remove(r)
 
         # Now write cpptraj input
         tempfile = open('production/%s/tempfile' % os.path.join(revision, replicate), 'w')
