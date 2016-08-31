@@ -3,6 +3,6 @@
 __version__ = '0.0.0a1'
 __author__  = 'Robin Betz'
 
-from vmdfunctions import *
-from datasets import *
+from . import vmdfunctions
+from . import datasets
 

@@ -1,8 +1,11 @@
 import mdtraj as md
 import molecule
 import molrep
+import numpy as np
 import trans
 from atomsel import atomsel
+from glob import glob
+from msmbuilder.msm import MarkovStateModel
 from VMD import evaltcl
 
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -29,10 +32,10 @@ def get_ligand_residues(molid, topology, ligands):
     # Some sanity checking
     lsel = atomsel("resname %s" % " or resname ".join(ligands), molid)
     vligs = atomsel("residue %s" % ' '.join(str(i) for i in mligs), molid)
-    assert len(mligs) == len(set(lsel.get("resid")))
-    assert len(set(vligs.get("resid"))) == len(set(lsel.get("resid")))
+    assert len(mligs) == len(set(lsel.get("residue")))
+    assert len(set(vligs.get("residue"))) == len(set(lsel.get("residue")))
 
-    return mligs
+    return sorted(mligs)
 
 #==============================================================================
 
@@ -51,7 +54,7 @@ def color_ligands(data, molids, topology, ligands, featidx):
     minl = min(min(d[:,featidx]) for d in data)
     rge = max(max(d[:,featidx]) for d in data) - minl
 
-    for mx,m in enumerate(molids):
+    for mx,m in enumerate(sorted(molids)):
         sels = [ atomsel("residue %d" % l, m) for l in ligands ]
         for i,s in enumerate(sels):
             assert len(data[mx*len(ligands)+i]) == molecule.numframes(m)
@@ -76,7 +79,7 @@ def clear_representations(molid):
 
 #==============================================================================
 
-def generate_cluster_representations(molids, data, ligands):
+def generate_cluster_representations(molids, data, ligands, clustvis):
     """
     Generates sets of representations for each cluster. The resulting
     data from these sets can be used to visualized.
@@ -85,6 +88,7 @@ def generate_cluster_representations(molids, data, ligands):
         molids (list of int): Molecule IDs to generate clusters for
         data (numpy array): Cluster ID data from msmbuilder
         ligands (list of int): Ligand IDs, in order
+        clustvis (list of int): Which clusters to display
 
     Returns:
         (dict int -> list of tuple): Cluster dictionary, connecting cluster
@@ -95,10 +99,9 @@ def generate_cluster_representations(molids, data, ligands):
 
     assert len(data) == len(ligands)*len(molids)
 
-    n_clusters = max(max(_) for _ in data)
-
     clusters = {}
-    for c in range(-1,n_clusters):
+    clusters[-1] = []
+    for c in clustvis:
         clusters[c] = []
 
     for mx, m in enumerate(molids):
@@ -109,14 +112,14 @@ def generate_cluster_representations(molids, data, ligands):
         repname = molrep.get_repname(m, molrep.num(m)-1)
         clusters[-1].append((m, repname))
         # Basic ligand representation to always show
-        molrep.addrep(m, style="CPK",
-                      selection="residue %s" % " ".join(str(_) for _ in ligands),
-                      color="Type")
-        repname = molrep.get_repname(m, molrep.num(m)-1)
-        clusters[-1].append((m, repname))
+        #molrep.addrep(m, style="CPK",
+        #              selection="residue %s" % " ".join(str(_) for _ in ligands),
+        #              color="Type")
+        #repname = molrep.get_repname(m, molrep.num(m)-1)
+        #clusters[-1].append((m, repname))
         
         # Now ones for each cluster
-        for c in range(n_clusters):
+        for c in clustvis:
             for i, l in enumerate(ligands):
 
                 # Get the frames corresponding to this cluster
@@ -171,7 +174,7 @@ def show_clusters(clusters, clustertable):
 
 #==============================================================================
 
-def show_frame_clusters(clustertable, data):
+def show_frame_clusters(molids, data, ligands):
     """
     Given a molid and frame, shows all clusters represented in
     that frame, colored differently. The molid and frame
@@ -184,9 +187,10 @@ def show_frame_clusters(clustertable, data):
     pos = molecule.listall().index(molecule.get_top())
     stride = len(data)/molecule.num()
     c = [ d[molecule.get_frame(molecule.get_top())] 
-          for d in data[stride*pos:stride*pos+10] ]
+          for d in data[stride*pos:stride*pos+len(ligands)] ]
     print("Clusters present in frame %d: %s"
           % (molecule.get_frame(molecule.get_top()), c))
+    clustertable = generate_cluster_representations(molids, data, ligands, c)
     show_clusters(c, clustertable)
 
 #==============================================================================
@@ -213,6 +217,32 @@ def set_representations(ids, ligands, clear=True):
             molrep.set_colorupdate(m, molrep.num(m)-1, True)
             evaltcl("mol scaleminmax %d %d 0.0 1.0" % (m, molrep.num(m)-1))
 
+#==============================================================================
+
+def get_msm_clusters(molids, msm, clusters, ligands):
+    """
+    Generates and shows clusters selected to resample
+
+    Args:
+        molids (list of int): Molecules to view
+        msm (MarkovStateModel): Built model from previous generation
+        clusters: Pickled clusters
+        ligands (list of int): Ligand IDs, in order
+
+    Returns:
+        mins (list of int): Cluster numbers to resample
+        clustl (list): Representations for 50 least sampled clusters
+    """
+    msm_to_clust = dict((v,k) for k,v in msm.mapping_.iteritems())
+    mins = [msm_to_clust[x] for x in msm.populations_.argsort()[:50]]
+
+    for m in mins:
+        frames = {k:v for k,v in {i:np.ravel(np.where(c==m)) \
+                                  for i,c in enumerate(clusters)}.iteritems() \
+                  if len(v)}
+    clustl = generate_cluster_representations(molids, clusters, ligands, mins)
+    return mins, clustl
+
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #                                  LOADERS                                   #
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -233,7 +263,8 @@ def load_data(filenames, identifiers, topology, stride):
 
     loaded = {}
     for i,f in enumerate(filenames):
-       filetype = f[-3:]
+       filetype = f.split('.')[-1]
+       if filetype == "nc": filetype="netcdf"
        loaded[identifiers[i]] = molecule.load(topology[-3:], topology)
        molecule.read(loaded[identifiers[i]], filetype, f, skip=stride, waitfor=-1)
        molecule.rename(loaded[identifiers[i]], identifiers[i])
@@ -256,3 +287,22 @@ def load_topology(filename, topology):
     return t.topology
 
 #==============================================================================
+
+def load_sampled(topology, eqdir):
+    """
+    Loads all equilibrated files so you can see what's been sampled.
+
+    Args:
+        topology (str): Path to the psf file
+        eqdir (str): Path to the equilibration directory
+    """
+    for gen in glob("%s/*" % eqdir):
+        for rep in glob("%s/*" % gen):
+            name = "G%s-r%s" % (gen, rep)
+            print("Loading: %s" % name)
+            mid = molecule.load("psf", topology)
+            molecule.read(mid, "netcdf", "%s/Eq_5.nc" % rep, skip=1000, waitfor=-1)
+            molecule.rename(mid, name)
+
+#==============================================================================
+
