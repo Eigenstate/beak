@@ -2,6 +2,7 @@
 
 from glob import glob
 import os
+import re
 import subprocess
 import sys
 import itertools
@@ -28,6 +29,29 @@ def groupOutput(inputset):
         if i[0] == i[1]: result += "%d," % i[0]
         else: result += "%d-%d," % (i[0]-1,i[1]+1)
     return result[:-1]
+
+#==============================================================================
+
+def check_empty(filename):
+    """
+    Checks if the netcdf file contains frames.
+
+    Args:
+        filename (str): Path to the netcdf file to check
+    Returns:
+        (bool): True if there were no frames
+    """
+
+    checker = subprocess.Popen(["ncdump", "-h", filename],
+                               stdout=subprocess.PIPE)
+    output = checker.stdout.read()
+    r = re.compile("\(\d+ currently\)")
+    r2 = re.compile("\d+")
+    match  = r.search(output)
+    if match is None: return True
+    m2 = r2.search(match.group()) 
+    if m2 is None: return True
+    return not bool(int(m2.group()))
 
 #==============================================================================
 def get_protein_residues(psf):
@@ -68,6 +92,7 @@ def reimage(psf, revision, skip, alleq, align):
         IOError if the replicate directory is not present or empty
         ValueError if the cpptraj call fails
     """
+    revision = str(revision)
     # Error checking
     if not os.path.isfile(psf):
         raise IOError("%s not a valid file" % psf)
@@ -105,8 +130,10 @@ def reimage(psf, revision, skip, alleq, align):
             else:
                 rems = glob(os.path.join("production", revision, replicate, "Reimaged_Eq6_to_*_skip_%s.nc" % skip))
             for r in rems:
-                print("Removing: %s" % r)
-                os.remove(r)
+                num = r.split('_')[3]
+                if num <= prods[-1]:
+                    print("Removing: %s" % r)
+                    os.remove(r)
 
         # Now write cpptraj input
         tempfile = open('production/%s/tempfile' % os.path.join(revision, replicate), 'w')
@@ -128,7 +155,9 @@ def reimage(psf, revision, skip, alleq, align):
         # Read in production data, reimaged
         for p in prods:
             if "Reimaged" in p: continue
-            tempfile.write("trajin %s/Prod_%s.nc\n" % (os.path.join("production", revision,replicate),p))
+            pfile = "%s/Prod_%s.nc" % (os.path.join("production", revision, replicate), p)
+            if not check_empty(pfile):
+                tempfile.write("trajin %s\n" % pfile)
 
         protein_residues = get_protein_residues(psf)
         
