@@ -14,6 +14,7 @@ def get_scaler(molid, steepness=0.5):
         molid (int): VMD molecule ID to obtain scaler for
         steepness (float): Steepness of the switching function,
             or the width over which switching will be applied.
+        log (bool): Whether or not to scale logarithmically
     Returns:
         (function handle): Scaling function to pass to featurizer
     """
@@ -22,12 +23,15 @@ def get_scaler(molid, steepness=0.5):
     zdim = max(atomsel(molid=molid).get('z')) \
            - min(atomsel(molid=molid).get('z'))
 
-    def scaler(ligand_com, raw_dists):
+    def scaler(ligand_com, raw_dists, log=False):
         if len(ligand_com) != len(raw_dists):
             raise ValueError("Array size mismatch in scaling function")
 
         scale_factor = -0.5*np.tanh(steepness*ligand_com[:,2]-min_z)+0.5
-        return raw_dists*(1.-scale_factor) + zdim*scale_factor
+        if log:
+            return np.log(raw_dists*(1.-scale_factor) + zdim*scale_factor)
+        else:
+            return raw_dists*(1.-scale_factor) + zdim*scale_factor
 
     return scaler
 
