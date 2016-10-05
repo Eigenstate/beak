@@ -2,7 +2,7 @@ import vmd, molecule
 from atomsel import *
 import numpy as np
 
-def get_scaler(prefix, steepness=0.5):
+def get_scaler(molid, steepness=0.5):
     """
     Returns a scaling function appropriate for the given system.
     The function will smoothly switch from the normal contact
