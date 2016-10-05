@@ -19,7 +19,7 @@ def get_scaler(prefix, steepness=0.5):
     """
 
     min_z = min(atomsel("lipid", molid=molid).get('z'))
-    zdim = max(atomsel(molid=molid).get('z')) \ 
+    zdim = max(atomsel(molid=molid).get('z')) \
            - min(atomsel(molid=molid).get('z'))
 
     def scaler(ligand_com, raw_dists):

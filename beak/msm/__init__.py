@@ -5,4 +5,5 @@ __author__  = 'Robin Betz'
 
 from . import vmdfunctions
 from . import datasets
+from . import scaler
 
