@@ -77,6 +77,49 @@ def dor(generation):
 
 #==============================================================================
 
+def b2ar10_rs(generation):
+    filenames = []
+    identifiers = []
+
+    if gethostname() == "platyrhynchos":
+        prefix = "/home/robin/Work/Projects/thesis/sherlock/rbetz/b2ar10_rs/"
+    else:
+        prefix = "/scratch/PI/rondror/rbetz/b2ar10_rs/"
+    tf = prefix + "inp01_b2ar_10dalps_hmr.psf"
+    skelly = prefix + "production/%d/%d/Reimaged_Eq6_*_skip_1.nc"
+
+    for gen in range(1, generation+1):
+        news = sorted(glob(os.path.join(prefix, "production", str(gen),
+                                        "*", "Reimaged_*.nc")),
+                      key=lambda x: int(x.split('/')[-2]))
+        filenames.extend(news)
+        identifiers.extend("b2G%d-%d" % (gen, i) for i in range(1,len(news)+1))
+
+    return filenames, identifiers, tf, prefix
+
+#==============================================================================
+
+def dor10_rs(generation):
+    filenames = []
+    identifiers = []
+
+    if gethostname() == "platyrhynchos":
+        prefix = "/home/robin/Work/Projects/thesis/sherlock/rbetz/DOR10_rs/"
+    else:
+        prefix = "/scratch/PI/rondror/rbetz/DOR10_rs/"
+    tf = prefix + "inp02_4rwd_10ligs.psf"
+    skelly = prefix + "production/%d/%d/Reimaged_Eq6_*_skip_1.nc"
+
+    for gen in range(1, generation+1):
+        news = sorted(glob(os.path.join(prefix, "production", str(gen),
+                                        "*", "Reimaged_*.nc")),
+                      key=lambda x: int(x.split('/')[-2]))
+        filenames.extend(news)
+        identifiers.extend("dorG%d-%d" % (gen, i) for i in range(1,len(news)+1))
+
+    return filenames, identifiers, tf, prefix
+#==============================================================================
+
 def load_dataset(dataset, generation, stride, ligands):
 
     # Load data, topology, get ligand residues
@@ -87,23 +130,18 @@ def load_dataset(dataset, generation, stride, ligands):
     ligs = bk.get_ligand_residues(molids[0], topo, ligands)
 
     # Find and load the msm
-    msm = pickle.load(open(os.path.join(prefix, "production", str(generation), "msm_G%d.pkl" % generation)))
+    msm = pickle.load(open(os.path.join(prefix, "production", str(generation), "mmsm_G%d.pkl" % generation)))
     tica = pickle.load(open(os.path.join(prefix, "production", str(generation), "testing.tica.pkl")))
     clust = pickle.load(open(os.path.join(prefix, "production", str(generation), "testing.cluster.pkl")))
-
-    # Do macrostate lumping
-    pcca = PCCAPlus.from_msm(msm, n_macrostates=50)
-    mcl = pcca.transform(clust, mode="fill")
 
     # Stride it correctly
     tica = [t[::stride] for t in tica]
     clust = [c[::stride] for c in clust]
-    mcl = [m[::stride] for m in mcl]
 
     # Show the clusters for next generation
     mins, clustl = bk.get_msm_clusters(molids, msm, clust, ligs)
     bk.show_clusters(mins[::10], clustl)
 
-    return mins, mcl, clust, tica, ligs
+    return mins, msm, clust, tica, ligs, topo
 
 #==============================================================================
