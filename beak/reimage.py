@@ -9,8 +9,7 @@ import itertools
 import vmd, molecule
 from atomsel import atomsel
 
-#====
-def groupOutput(inputset):
+#==== def groupOutput(inputset):
     """
     Groups the integers in input set into ranges
     in a string parseable by parseSelection
@@ -108,73 +107,78 @@ def reimage(psf, revision, skip, alleq, align):
         raise IOError("No replicates found in directory %s" % revision)
 
     for replicate in dirs:
-        # Enumerate production files
-        prods = [ x.replace("%s/Prod_"% os.path.join("production", revision, replicate),"").replace(".nc","") for x in 
-                  glob( "%s/Prod_[0-9]*.nc" % os.path.join("production", revision, replicate) ) if "imaged" not in x ]
-        prods.sort(key=int)
-        if not len(prods):
-            print("NO production simulation in Rev %s Rep %s" % (revision, replicate))
-            continue
+        reimage_single_dir(psf, replicate, revision, skip, alleq, align)
 
-        # If output file already exists, continue
+#==============================================================================
+
+def reimage_single_dir(psf, replicate, revision, skip, alleq, align):
+    # Enumerate production files
+    prods = [ x.replace("%s/Prod_"% os.path.join("production", revision, replicate),"").replace(".nc","") for x in 
+              glob( "%s/Prod_[0-9]*.nc" % os.path.join("production", revision, replicate) ) if "imaged" not in x ]
+    prods.sort(key=int)
+    if not len(prods):
+        print("NO production simulation in Rev %s Rep %s" % (revision, replicate))
+        continue
+
+    # If output file already exists, continue
+    if alleq:
+        ofile = os.path.join("production", revision, replicate, "Reimaged_Eq1_to_%s_skip_%s.nc" % (prods[-1], skip))
+    else:
+        ofile = os.path.join("production", revision, replicate, "Reimaged_Eq6_to_%s_skip_%s.nc" % (prods[-1], skip))
+    if os.path.isfile(ofile):
+        print("EXISTS reimaged file for Rev %s Rep %s" % (revision, replicate))
+        continue
+    else:
         if alleq:
-            ofile = os.path.join("production", revision, replicate, "Reimaged_Eq1_to_%s_skip_%s.nc" % (prods[-1], skip))
+            rems = glob(os.path.join("production", revision, replicate, "Reimaged_Eq1_to_*_skip_%s.nc" % skip))
         else:
-            ofile = os.path.join("production", revision, replicate, "Reimaged_Eq6_to_%s_skip_%s.nc" % (prods[-1], skip))
-        if os.path.isfile(ofile):
-            print("EXISTS reimaged file for Rev %s Rep %s" % (revision, replicate))
-            continue
-        else:
-            if alleq:
-                rems = glob(os.path.join("production", revision, replicate, "Reimaged_Eq1_to_*_skip_%s.nc" % skip))
-            else:
-                rems = glob(os.path.join("production", revision, replicate, "Reimaged_Eq6_to_*_skip_%s.nc" % skip))
-            for r in rems:
-                num = r.split('_')[3]
-                if num <= prods[-1]:
-                    print("Removing: %s" % r)
-                    os.remove(r)
+            rems = glob(os.path.join("production", revision, replicate, "Reimaged_Eq6_to_*_skip_%s.nc" % skip))
+        for r in rems:
+            num = r.split('_')[3]
+            if num <= prods[-1]:
+                print("Removing: %s" % r)
+                os.remove(r)
 
-        # Now write cpptraj input
-        tempfile = open('production/%s/tempfile' % os.path.join(revision, replicate), 'w')
+    # Now write cpptraj input
+    tempfile = open('production/%s/tempfile' % os.path.join(revision, replicate), 'w')
 
-        if align:
-            tempfile.write("reference %s parm %s [ref]\n" % (psf.replace("psf","inpcrd"), psf))
+    if align:
+        tempfile.write("reference %s parm %s [ref]\n" % (psf.replace("psf","inpcrd"), psf))
 
-        # equilibration written 8x more frequently so downsample
-        if alleq:
-            eqs = [ x.replace("equilibration/%s/Eq_"%revision,"").replace(".nc","") for x in
-                    glob("equilibration/%s/Eq_[0-5]*.nc" % revision) if "imaged" not in x ]
-            eqs.sort(key=int)
-            for e in eqs:
-                tempfile.write("trajin equilibration/%s/Eq_%s.nc 1 last %d\n" % (revision, e, int(skip)*8))
+    # equilibration written 8x more frequently so downsample
+    if alleq:
+        eqs = [ x.replace("equilibration/%s/Eq_"%revision,"").replace(".nc","") for x in
+                glob("equilibration/%s/Eq_[0-5]*.nc" % revision) if "imaged" not in x ]
+        eqs.sort(key=int)
+        for e in eqs:
+            tempfile.write("trajin equilibration/%s/Eq_%s.nc 1 last %d\n" % (revision, e, int(skip)*8))
 
-        # Last equilibration in 
-        tempfile.write("trajin production/%s/%s/Eq_6.nc 1 last %d\n" % (revision, replicate, int(skip)*8))
+    # Last equilibration in 
+    tempfile.write("trajin production/%s/%s/Eq_6.nc 1 last %d\n" % (revision, replicate, int(skip)*8))
 
-        # Read in production data, reimaged
-        for p in prods:
-            if "Reimaged" in p: continue
-            pfile = "%s/Prod_%s.nc" % (os.path.join("production", revision, replicate), p)
-            if not check_empty(pfile):
-                tempfile.write("trajin %s\n" % pfile)
+    # Read in production data, reimaged
+    for p in prods:
+        if "Reimaged" in p: continue
+        pfile = "%s/Prod_%s.nc" % (os.path.join("production", revision, replicate), p)
+        if not check_empty(pfile):
+            tempfile.write("trajin %s\n" % pfile)
 
-        protein_residues = get_protein_residues(psf)
-        
-        tempfile.write("center origin (:%s)\n" % protein_residues)
-        tempfile.write("image origin center\n")
-        
-        if align:
-            tempfile.write("rms toRef ref [ref] @CA\n") 
+    protein_residues = get_protein_residues(psf)
+    
+    tempfile.write("center origin (:%s)\n" % protein_residues)
+    tempfile.write("image origin center\n")
+    
+    if align:
+        tempfile.write("rms toRef ref [ref] @CA\n") 
 
-        tempfile.write("trajout %s offset %s\n" % (ofile, skip))
-        #tempfile.write("trajout %s/Reimaged_200_to_%s_skip_%s.nc start 1000 offset %s\n" % (os.path.join("production", revision, replicate),prods[-1],skip,skip))
-        tempfile.write("go\n")
-        tempfile.close()
+    tempfile.write("trajout %s offset %s\n" % (ofile, skip))
+    #tempfile.write("trajout %s/Reimaged_200_to_%s_skip_%s.nc start 1000 offset %s\n" % (os.path.join("production", revision, replicate),prods[-1],skip,skip))
+    tempfile.write("go\n")
+    tempfile.close()
 
-        subprocess.call("%s/bin/cpptraj -p %s -i %s/tempfile" % (os.environ['AMBERHOME'], psf, os.path.join("production", revision, replicate)), shell=True)
+    subprocess.call("%s/bin/cpptraj -p %s -i %s/tempfile" % (os.environ['AMBERHOME'], psf, os.path.join("production", revision, replicate)), shell=True)
 
-
+#==============================================================================
 
 if __name__ == "__main__":
     # Process args
