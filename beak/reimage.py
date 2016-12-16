@@ -9,7 +9,7 @@ import itertools
 import vmd, molecule
 from atomsel import atomsel
 
-#==== def groupOutput(inputset):
+def groupOutput(inputset):
     """
     Groups the integers in input set into ranges
     in a string parseable by parseSelection
@@ -118,7 +118,7 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align):
     prods.sort(key=int)
     if not len(prods):
         print("NO production simulation in Rev %s Rep %s" % (revision, replicate))
-        continue
+        return 
 
     # If output file already exists, continue
     if alleq:
@@ -127,7 +127,7 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align):
         ofile = os.path.join("production", revision, replicate, "Reimaged_Eq6_to_%s_skip_%s.nc" % (prods[-1], skip))
     if os.path.isfile(ofile):
         print("EXISTS reimaged file for Rev %s Rep %s" % (revision, replicate))
-        continue
+        return
     else:
         if alleq:
             rems = glob(os.path.join("production", revision, replicate, "Reimaged_Eq1_to_*_skip_%s.nc" % skip))
