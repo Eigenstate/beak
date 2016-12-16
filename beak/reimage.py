@@ -103,9 +103,10 @@ def reimage(psf, revision, skip, alleq, align):
 
     # Go into the folder n collect filenames
     dirs = [name for name in os.listdir("production/" + revision) if \
-            os.path.isdir(os.path.join("production/" + revision, name))]
+            os.path.isdir(os.path.join("production", revision, name))]
     if not dirs:
-        raise IOError("No replicates found in directory %s" % revision)
+        raise IOError("No replicates found in directory %s"
+                      % os.path.join("production", revision, name))
 
     for replicate in dirs:
         # Enumerate production files
