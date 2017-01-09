@@ -34,14 +34,14 @@ def b2ar_alprenolol():
 
 #==============================================================================
 
-def b2ar_10dalps(generation):
+def b2ar(generation):
     filenames = []
     identifiers = []
 
     if gethostname() == "platyrhynchos":
-        prefix = "/home/robin/Work/Projects/thesis/sherlock/rbetz/b2ar_TEN_dalps/"
+        prefix = "/home/robin/Work/Projects/thesis/sherlock/rbetz/B2AR/10ligs_indep"
     else:
-        prefix = "/scratch/PI/rondror/rbetz/b2ar_TEN_dalps/"
+        prefix = "/scratch/PI/rondror/rbetz/B2AR/10ligs_indep"
     tf = prefix + "prep/inp01_b2ar_10dalps_hmr.psf"
 
     for gen in range(1, generation+1):
@@ -60,9 +60,9 @@ def dor(generation):
     identifiers = []
 
     if gethostname() == "platyrhynchos":
-        prefix = "/home/robin/Work/Projects/thesis/sherlock/rbetz/DOR/3ligs/"
+        prefix = "/home/robin/Work/Projects/thesis/sherlock/rbetz/DOR/3ligs_indep/"
     else:
-        prefix = "/scratch/PI/rondror/rbetz/DOR/3ligs/"
+        prefix = "/scratch/PI/rondror/rbetz/DOR/3ligs_indep/"
     topology = prefix + "prep/inp01_4rwd_3ligs.psf"
     skelly = prefix + "production/%d/%d/Reimaged_Eq6_*_skip_1.nc"
 
@@ -72,6 +72,28 @@ def dor(generation):
                       key=lambda x: int(x.split('/')[-2]))
         filenames.extend(news)
         identifiers.extend("dorG%d-%d" % (gen, i) for i in range(1,len(news)+1))
+
+    return filenames, identifiers, topology, prefix
+
+#==============================================================================
+
+def mor(generation):
+    filenames = []
+    identifiers = []
+
+    if gethostname() == "platyrhynchos":
+        prefix = "/home/robin/Work/Projects/thesis/sherlock/rbetz/MOR/"
+    else:
+        prefix = "/scratch/PI/rondror/rbetz/MOR/"
+    topology = prefix + "prep/inp01_4dkl_3ligs.psf"
+    skelly = prefix + "production/%d/%d/Reimaged_Eq6_*_skip_1.nc"
+
+    for gen in range(1, generation+1):
+        news = sorted(glob(os.path.join(prefix, "production", str(gen),
+                                        "*", "Reimaged_*.nc")),
+                      key=lambda x: int(x.split('/')[-2]))
+        filenames.extend(news)
+        identifiers.extend("morG%d-%d" % (gen, i) for i in range(1,len(news)+1))
 
     return filenames, identifiers, topology, prefix
 
