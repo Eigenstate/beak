@@ -8,6 +8,7 @@ import vmdnumpy
 from atomsel import atomsel
 from glob import glob
 from msmbuilder.msm import MarkovStateModel
+from msmbuilder.tpt import hub_scores
 from VMD import evaltcl, graphics
 
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -106,13 +107,16 @@ def generate_cluster_representations(molids, data, ligands, clustvis):
     for c in clustvis:
         clusters[c] = []
 
+    protvis = False
     for mx, m in enumerate(molids):
         clear_representations(m)
         # Create the basic set of representations
-        molrep.addrep(m, style="NewRibbons", selection="protein or resname ACE NMA",
-                      color="ColorID 6")
-        repname = molrep.get_repname(m, molrep.num(m)-1)
-        clusters[-1].append((m, repname))
+        if not protvis:
+            molrep.addrep(m, style="NewRibbons", selection="protein or resname ACE NMA",
+                          color="ColorID 6")
+            protvis = True
+            repname = molrep.get_repname(m, molrep.num(m)-1)
+            clusters[-1].append((m, repname))
         # Basic ligand representation to always show
         #molrep.addrep(m, style="CPK",
         #              selection="residue %s" % " ".join(str(_) for _ in ligands),
@@ -135,9 +139,10 @@ def generate_cluster_representations(molids, data, ligands, clustvis):
                 if not len(frames): continue
 
                 # Add a representation with all these frames
-                molrep.addrep(m, style="Licorice",
-                              selection="same fragment as residue %d and noh" % l,
-                              color="Type")
+                molrep.addrep(m, style="Licorice 0.3 12.0 12.0",
+                              selection="noh and same fragment as residue %d " % l,
+                              color="Type",
+                              material="Opaque")
                 molrep.set_visible(m, molrep.num(m)-1, False)
                 repname = molrep.get_repname(m, molrep.num(m)-1)
                 evaltcl("mol drawframes %d %d %s"
@@ -177,7 +182,8 @@ def display_msm(molids, clust, ligands, msm, states=None):
 
     # Show the protein as ribbons
     molrep.addrep(molids[0], style="NewRibbons",
-                  selection="protein", color="ColorID 6")
+                  selection="protein", color="ColorID 6",
+                  material="Translucent")
 
     # Generate a representative cluster for each state
     rms = []; reps = []
@@ -191,7 +197,7 @@ def display_msm(molids, clust, ligands, msm, states=None):
             continue
         m,f,l = lg
         atomsel("same fragment as residue %d" % l, molid=m).set("user", math.log(msm.populations_[msmstate]))
-        molrep.addrep(m, style="Licorice 0.1 12.0 12.0" % rms, color="User",
+        molrep.addrep(m, style="Licorice 0.3 12.0 12.0" % rms, color="User",
                       selection="noh and same fragment as residue %d" % l) 
         reps.append((m, molrep.num(m)-1))
         evaltcl("mol scaleminmax %d %d %f %f" % (m, molrep.num(m)-1, math.log(min(msm.populations_)), math.log(max(msm.populations_)) ))
@@ -348,12 +354,15 @@ def set_representations(ids, ligands, clear=True):
         clear (bool): Whether to delete previous representations
     """
 
+    protein=False
     for m in ids:
         # Clear existing representations
         if clear:
             clear_representations(m)
 
-        molrep.addrep(m, style="NewRibbons", selection="protein", color="ColorID 6")
+        if not protein:
+    #        protein=True
+            molrep.addrep(m, style="NewRibbons", selection="protein", color="ColorID 6")
         for l in ligands:
             molrep.addrep(m, style="Licorice 0.3 12.0 12.0", selection="noh and same fragment as residue %d" % l,
                           color="User")
@@ -377,6 +386,7 @@ def get_msm_clusters(molids, msm, clusters, ligands):
         clustl (list): Representations for 50 least sampled clusters
     """
     msm_to_clust = dict((v,k) for k,v in msm.mapping_.iteritems())
+    scores = hub_scores(msm)
     mins = [msm_to_clust[x] for x in msm.populations_.argsort()[:50]]
 
     for m in mins:

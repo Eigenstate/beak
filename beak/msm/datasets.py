@@ -60,10 +60,10 @@ def dor(generation):
     identifiers = []
 
     if gethostname() == "platyrhynchos":
-        prefix = "/home/robin/Work/Projects/thesis/DOR_peptide_binding/"
+        prefix = "/home/robin/Work/Projects/thesis/sherlock/rbetz/DOR/3ligs/"
     else:
-        prefix = "/scratch/PI/rondror/MD_simulations/amber/DOR/robin_peptide_binding/"
-    topology = prefix + "prep/inp02_4rwd_10ligs.psf"
+        prefix = "/scratch/PI/rondror/rbetz/DOR/3ligs/"
+    topology = prefix + "prep/inp01_4rwd_3ligs.psf"
     skelly = prefix + "production/%d/%d/Reimaged_Eq6_*_skip_1.nc"
 
     for gen in range(1, generation+1):
@@ -74,6 +74,29 @@ def dor(generation):
         identifiers.extend("dorG%d-%d" % (gen, i) for i in range(1,len(news)+1))
 
     return filenames, identifiers, topology, prefix
+
+#==============================================================================
+
+def b2test(rep, generation):
+    filenames = []
+    identifiers = []
+
+    if gethostname() == "platyrhynchos":
+        prefix = "/home/robin/Work/Projects/thesis/sherlock/rbetz/tests_b2ar/50ns_%d/" % rep
+        tf = "/home/robin/Work/Projects/thesis/sherlock/rbetz/b2ar10_rs/inp01_b2ar_10dalps_hmr.psf"
+    else:
+        prefix = "/scratch/PI/rondror/rbetz/tests_b2ar/50ns_%d/" % rep
+        tf = "/scratch/PI/rondror/rbetz/b2ar10_rs/inp01_b2ar_10dalps_hmr.psf"
+    skelly = prefix + "production/%d/%d/Reimaged_Eq6_*_skip_1.nc"
+
+    for gen in range(1, generation+1):
+        news = sorted(glob(os.path.join(prefix, "production", str(gen),
+                                        "*", "Reimaged_*.nc")),
+                      key=lambda x: int(x.split('/')[-2]))
+        filenames.extend(news)
+        identifiers.extend("b2G_%d_%d-%d" % (rep, gen, i) for i in range(1,len(news)+1))
+
+    return filenames, identifiers, tf, prefix
 
 #==============================================================================
 
@@ -140,7 +163,7 @@ def load_dataset(dataset, generation, stride, ligands):
 
     # Show the clusters for next generation
     mins, clustl = bk.get_msm_clusters(molids, msm, clust, ligs)
-    bk.show_clusters(mins[::10], clustl)
+    bk.show_clusters(mins[:10], clustl)
 
     return mins, msm, clust, tica, ligs, topo
 
