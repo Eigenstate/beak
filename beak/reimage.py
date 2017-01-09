@@ -113,6 +113,10 @@ def reimage(psf, revision, skip, alleq, align):
 #==============================================================================
 
 def reimage_single_dir(psf, replicate, revision, skip, alleq, align):
+    # Make em strings
+    replicate = str(replicate)
+    revision = str(revision)
+
     # Enumerate production files
     prods = [ x.replace("%s/Prod_"% os.path.join("production", revision, replicate),"").replace(".nc","") for x in 
               glob( "%s/Prod_[0-9]*.nc" % os.path.join("production", revision, replicate) ) if "imaged" not in x ]
