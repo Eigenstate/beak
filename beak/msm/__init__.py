@@ -3,7 +3,7 @@
 __version__ = '0.0.0a1'
 __author__  = 'Robin Betz'
 
-from . import vmdfunctions
-from . import datasets
-from . import scaler
+from . import visualizers
+
+from sampler import Sampler
 

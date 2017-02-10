@@ -48,7 +48,7 @@ def check_empty(filename):
     r2 = re.compile("\d+")
     match  = r.search(output)
     if match is None: return True
-    m2 = r2.search(match.group()) 
+    m2 = r2.search(match.group())
     if m2 is None: return True
     return not bool(int(m2.group()))
 
@@ -82,7 +82,7 @@ def reimage(psf, revision, skip, alleq, align):
     Args:
         psf (str): Path to the psf file, used to identify protein
         revision (str): The revision to reimage
-        skip (int): Offset 
+        skip (int): Offset
         alleq (bool): Whether or not to include all equilibration setps
         align (bool): Whether or not to also align the trajectory
 
@@ -118,12 +118,12 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align):
     revision = str(revision)
 
     # Enumerate production files
-    prods = [ x.replace("%s/Prod_"% os.path.join("production", revision, replicate),"").replace(".nc","") for x in 
+    prods = [ x.replace("%s/Prod_"% os.path.join("production", revision, replicate),"").replace(".nc","") for x in
               glob( "%s/Prod_[0-9]*.nc" % os.path.join("production", revision, replicate) ) if "imaged" not in x ]
     prods.sort(key=int)
     if not len(prods):
         print("NO production simulation in Rev %s Rep %s" % (revision, replicate))
-        return 
+        return
 
     # If output file already exists, continue
     if alleq:
@@ -158,7 +158,7 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align):
         for e in eqs:
             tempfile.write("trajin equilibration/%s/Eq_%s.nc 1 last %d\n" % (revision, e, int(skip)*8))
 
-    # Last equilibration in 
+    # Last equilibration in
     tempfile.write("trajin production/%s/%s/Eq_6.nc 1 last %d\n" % (revision, replicate, int(skip)*8))
 
     # Read in production data, reimaged
@@ -169,12 +169,12 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align):
             tempfile.write("trajin %s\n" % pfile)
 
     protein_residues = get_protein_residues(psf)
-    
+
     tempfile.write("center origin (:%s)\n" % protein_residues)
     tempfile.write("image origin center\n")
-    
+
     if align:
-        tempfile.write("rms toRef ref [ref] @CA\n") 
+        tempfile.write("rms toRef ref [ref] @CA\n")
 
     tempfile.write("trajout %s offset %s\n" % (ofile, skip))
     #tempfile.write("trajout %s/Reimaged_200_to_%s_skip_%s.nc start 1000 offset %s\n" % (os.path.join("production", revision, replicate),prods[-1],skip,skip))
