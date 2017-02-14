@@ -101,8 +101,7 @@ def get_msm_clusters(msm, clust, samp, scores=None):
     if scores is None or not len(scores):
         scores = hub_scores(msm)
 
-    msm_to_clust = dict((v,k) for k,v in msm.mapping_.items())
-    mins = [msm_to_clust[x] for x in msm.populations_.argsort()[:50]]
+    mins = list(msm.inverse_transform(scores.argsort())[0])
 
     for m in mins:
         frames = {k:v for k,v in {i:np.ravel(np.where(c==m)) \
@@ -347,10 +346,9 @@ def show_frame_clusters(sampler, clust=None):
     if clust is None:
         clust = sampler.mclust
 
-    pos = molecule.listall().index(molecule.get_top())
-    stride = len(clust)/molecule.num()
+    pos = sampler.molids.index(molecule.get_top())
     c = [ d[molecule.get_frame(molecule.get_top())]
-          for d in clust[stride*pos:stride*pos+sampler.num_ligands] ]
+          for d in clust[sampler.num_ligands*pos:(1+pos)*sampler.num_ligands] ]
     print("Clusters present in frame %d: %s"
           % (molecule.get_frame(molecule.get_top()), c))
     clustertable = generate_cluster_representations(sampler, c, clust)
