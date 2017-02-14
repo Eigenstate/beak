@@ -4,7 +4,7 @@ change what is visualized
 """
 import math
 import numpy as np
-from msmbuilder.tpt import hub_scores
+from msmbuilder.tpt import hub_scores, top_path, net_fluxes
 try:
     from vmd import *
     atomsel = atomsel.atomsel
@@ -101,7 +101,7 @@ def get_msm_clusters(msm, clust, samp, scores=None):
     if scores is None or not len(scores):
         scores = hub_scores(msm)
 
-    msm_to_clust = dict((v,k) for k,v in msm.mapping_.iteritems())
+    msm_to_clust = dict((v,k) for k,v in msm.mapping_.items())
     mins = [msm_to_clust[x] for x in msm.populations_.argsort()[:50]]
 
     for m in mins:
@@ -354,12 +354,12 @@ def show_frame_clusters(sampler, clust=None):
     print("Clusters present in frame %d: %s"
           % (molecule.get_frame(molecule.get_top()), c))
     clustertable = generate_cluster_representations(sampler, c, clust)
-    show_clusters(c, clustertable)
+    show_clusters(c, clustertable, sampler)
     return c, clustertable
 
 #==============================================================================
 
-def show_clusters(clusters, clustertable):
+def show_clusters(clusters, clustertable, samp):
     """
     Sets the representations for each molecule to show representations
     for the specified cluster
@@ -367,12 +367,13 @@ def show_clusters(clusters, clustertable):
     Args:
         cluster (list of int): The cluster(s) to display
         clustertable: Output from generate_cluster_representations
+        samp (Sampler): MSM trajectory thing
     """
 
     # Hide all representations
     assert clustertable.get(-1) is not None
     #for m,_ in clustertable.get(-1):
-    for m in molecule.listall():
+    for m in samp.molids:
         for r in range(molrep.num(m)):
             molrep.set_visible(m, r, False)
 
@@ -424,19 +425,120 @@ def draw_representative_ligands(samp, clust, states, colors=None):
         states (list of int): Which clusters to show
         colors (list of float): Number by which to color clusters
     """
-    set_representations(samp, clear=True)
-    realc = [_/sum(colors) for _ in colors] # Normalize colors
+    clear_representations(samp)
+    if colors is not None:
+        realc = [_/sum(colors) for _ in colors] # Normalize colors
 
+    # Draw protein once
+    molrep.addrep(samp.molids[0], style="NewRibbons",
+                  selection="(protein or resname ACE NMA) and not same "
+                            "fragment as resname %s" % " ".join(samp.ligands),
+                  color="ColorID 6")
     for i, c in enumerate(states):
         lg, r = get_representative_ligand(samp, c, clust)
         if lg is None:
             print("Cluster %d unrepresented" % c)
             continue
         m,f,l = lg
-        atomsel("same fragment as residue %d" % l, molid=m).set("user", realc[i])
-        molrep.addrep(m, style="Licorice", material="Opaque", color="User",
-                      selection="noh and same fragment as residue %d" % l)
+        if colors is None:
+            molrep.addrep(m, style="Licorice", material="Opaque", color="ColorID %d" %i,
+                          selection="noh and same fragment as residue %d" % l)
+        else:
+            atomsel("same fragment as residue %d" % l, molid=m).set("user", realc[i])
+            molrep.addrep(m, style="Licorice", material="Opaque", color="User",
+                          selection="noh and same fragment as residue %d" % l)
         evaltcl("mol drawframes %d %d %s"
                 % (m, molrep.num(m)-1, f))
 
 #==============================================================================
+
+def closest_to_bound(samp, clust, msm, truesel, trueid):
+    """
+    Visualizes and returns the closest cluster to the bound pose.
+
+    Args:
+        samp (Sampler): MSM trajectory object
+        clust (cluster): Which clusters to consider
+        msm (MarkovStateModel): Markov model
+        truesel (str): Atom selection for true bound pose
+        trueid (int): VMD molecule ID of molecule with bound pose
+
+    Returns:
+        (list of float/int): Cluster labels, in order, of closest to bound
+    """
+    # Get the number of heavy atoms in one ligand
+    ligids = sorted(set(atomsel("resname %s" % " ".join(samp.ligands),
+                                molid=samp.molids[0]).get("residue")))
+    ligheavyatoms = len(atomsel("noh and same fragment as residue %d"
+                        % ligids[0], molid=samp.molids[0]))
+
+    # Find average structure for each cluster
+    clustmeans = {}; num = {}
+    for mx, molid in enumerate(sorted(samp.molids)):
+        for i, l in enumerate(sorted(set(atomsel("resname %s" % " ".join(samp.ligands),
+                molid=molid).get("residue")))):
+            mask = vmdnumpy.atomselect(molid, 0,
+                                       "noh and same fragment as residue %d" % l)
+            for frame in range(molecule.numframes(molid)):
+                c = clust[mx*samp.num_ligands+i][frame]
+
+                # Handle uninitialized cluster
+                if clustmeans.get(c) is None:
+                    clustmeans[c] = np.zeros((ligheavyatoms, 3))
+                    num[c] = 0.
+                clustmeans[c] += np.compress(mask, vmdnumpy.timestep(molid, frame), axis=0)
+                num[c] += 1.
+
+    # Now the sum is finished, do the division
+    for cl in clustmeans:
+        clustmeans[cl] = np.divide(clustmeans[cl], num[cl])
+
+    # Get the atom selection mask for the known bound ligand
+    tmask = vmdnumpy.atomselect(trueid, 0, "noh and (%s)" % truesel)
+    bound = np.compress(tmask, vmdnumpy.timestep(trueid, 0), axis=0)
+
+    # Find the closest frame to that one
+    rmsds = {}
+    for c in clustmeans:
+        r = np.sum(np.sqrt(np.sum((bound-clustmeans[c])**2, axis=1)))
+        rmsds[r] = c
+
+    return [rmsds[x] for x in np.sort(rmsds.keys())]
+
+#==============================================================================
+
+def show_binding_pathway(samp, bound, clust, msm, scores=None):
+    """
+    Visualizes the clusters along the binding pathway compared to
+    a known bound pose. Pathway is the most probable one to bulk solvent.
+
+    Args:
+        samp (Sampler): MSM trajectory object
+        bound (cluster): Which cluster corresponds to the bound pose
+        clust (clusters): Which clusters to consider
+        msm (MarkovStateModel): Which MSM to consider
+        scores (list of float): Hub scores, or will be computed if none
+
+    Returns:
+        (list of int): Clusters along the binding pathway, including
+            the closest one to the known bound pose, not including bulk solvent.
+    """
+    # Compute scores if undefined
+    if scores is None:
+        scores = hub_scores(msm)
+
+    # Identify the solvent cluster and the bound cluster
+    solvent = np.argmax(scores)
+
+    # Get the top pathway and remove solvent from it
+    flux = net_fluxes(sources=[solvent], sinks=[bound], msm=msm)
+    pathway = list(top_path(sources=[solvent], sinks=[bound], net_flux=flux)[0])
+    print(pathway)
+
+    # Visualize representative ligands in pathway
+    draw_representative_ligands(samp, clust, pathway,
+                                colors=range(len(pathway)))
+    return pathway
+
+#==============================================================================
+
