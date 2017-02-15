@@ -102,11 +102,6 @@ def get_msm_clusters(msm, clust, samp, scores=None):
         scores = hub_scores(msm)
 
     mins = list(msm.inverse_transform(scores.argsort())[0])
-
-    for m in mins:
-        frames = {k:v for k,v in {i:np.ravel(np.where(c==m)) \
-                                  for i,c in enumerate(clust)}.items() \
-                  if len(v)}
     clustl = generate_cluster_representations(samp, mins, clust)
     return mins, clustl, scores
 
