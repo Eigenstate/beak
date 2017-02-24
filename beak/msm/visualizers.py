@@ -99,6 +99,7 @@ def get_msm_clusters(msm, clust, samp, scores=None):
         scores (list of float): Scores for clusters
     """
     if scores is None or not len(scores):
+        print("Computing scores...")
         scores = hub_scores(msm)
 
     mins = list(msm.inverse_transform(scores.argsort())[0])
@@ -148,7 +149,7 @@ def generate_cluster_representations(samp, clustvis, clust=None):
             molrep.addrep(m, style="NewRibbons",
                           selection="(protein or resname ACE NMA) and not same "
                                     "fragment as resname %s" % " ".join(samp.ligands),
-                          color="ColorID 6")
+                          color="ColorID 6", material="AOShiny")
             protvis = True
             repname = molrep.get_repname(m, molrep.num(m)-1)
             clusters[-1].append((m, repname))
@@ -175,7 +176,7 @@ def generate_cluster_representations(samp, clustvis, clust=None):
                 molrep.addrep(m, style="Licorice 0.3 12.0 12.0",
                               selection="noh and same fragment as residue %d " % l,
                               color="Type",
-                              material="AOShiny")
+                              material="AOChalky")
                 molrep.set_visible(m, molrep.num(m)-1, False)
                 repname = molrep.get_repname(m, molrep.num(m)-1)
                 evaltcl("mol drawframes %d %d %s"
@@ -408,7 +409,8 @@ def set_representations(samp, clear=True):
 
 #==============================================================================
 
-def draw_representative_ligands(samp, clust, states, colors=None):
+def draw_representative_ligands(samp, clust, states, colors=None, protein=False,
+                                bulk=None):
     """
     Draws a representative ligand for each cluster frame
 
@@ -417,31 +419,136 @@ def draw_representative_ligands(samp, clust, states, colors=None):
         clust (clusters): Which clusters to show
         states (list of int): Which clusters to show
         colors (list of float): Number by which to color clusters
+        protein (bool): Whether or not to show corresponding protein
+        bulk (int): Solvent cluster to not display
     """
-    clear_representations(samp)
-    if colors is not None:
-        realc = [_/sum(colors) for _ in colors] # Normalize colors
 
+    if colors is not None and sum(colors) != 0:
+        realc = [float(_)/sum(colors) for _ in colors] # Normalize colors
+    else:
+        realc = colors
     # Draw protein once
-    molrep.addrep(samp.molids[0], style="NewRibbons",
-                  selection="(protein or resname ACE NMA) and not same "
-                            "fragment as resname %s" % " ".join(samp.ligands),
-                  color="ColorID 6")
+    protsel = "(protein or resname ACE NMA) and not same fragment as " \
+              "resname %s" % " ".join(samp.ligands)
+    if not protein:
+        molrep.addrep(samp.molids[0], style="NewRibbons",
+                      selection=protsel, color="ColorID 6")
     for i, c in enumerate(states):
+        print("STATE: %d" % c)
         lg, r = get_representative_ligand(samp, c, clust)
         if lg is None:
             print("Cluster %d unrepresented" % c)
             continue
         m,f,l = lg
         if colors is None:
-            molrep.addrep(m, style="Licorice", material="Opaque", color="ColorID %d" %i,
-                          selection="noh and same fragment as residue %d" % l)
+            if c != bulk:
+                molrep.addrep(m, style="Licorice", material="AOChalky", color="ColorID %d" %i,
+                              selection="noh and same fragment as residue %d" % l)
+                ligrep = molrep.num(m)-1
+            if protein:
+                molrep.addrep(m, style="NewRibbons", material="AOShiny",
+                              color="ColorID %d" % i,
+                              selection=protsel)
         else:
-            atomsel("same fragment as residue %d" % l, molid=m).set("user", realc[i])
-            molrep.addrep(m, style="Licorice", material="Opaque", color="User",
-                          selection="noh and same fragment as residue %d" % l)
-        evaltcl("mol drawframes %d %d %s"
-                % (m, molrep.num(m)-1, f))
+            atomsel("protein or (noh and same fragment as residue %d)" % l,
+                    molid=m, frame=f).set("user", realc[i])
+            if c != bulk:
+                molrep.addrep(m, style="Licorice", material="AOChalky", color="User",
+                              selection="noh and same fragment as residue %d" % l)
+                ligrep = molrep.num(m)-1 # Need to save in case multiple reps
+                molrep.set_scaleminmax(m, ligrep, 0, 1)
+            else:
+                print("Ignoring bulk cluster %d" % bulk)
+            if protein:
+                molrep.addrep(m, style="NewRibbons", material="AOShiny", color="User",
+                              selection=protsel)
+                molrep.set_scaleminmax(m, molrep.num(m)-1, 0, 1)
+
+        for i in range(molrep.num(m)):
+            evaltcl("mol drawframes %d %d %s" % (m, ligrep, f))
+
+#==============================================================================
+
+def cluster_averages(samp, clust):
+    """
+    Obtains the average cluster for each structure
+
+    Args:
+        samp (Sampler): MSM trajectory
+        clust (cluster): Which clusters to consider
+
+    Returns:
+        (dict label->coordinates): Cluster name, and average structure
+    """
+    # Precompute if possible
+    if hasattr(samp, "clustmeans") and len(samp.clustmeans):
+        return samp.clustmeans
+
+    # Get the number of heavy atoms in one ligand
+    ligids = sorted(set(atomsel("resname %s" % " ".join(samp.ligands),
+                                molid=samp.molids[0]).get("residue")))
+    ligheavyatoms = len(atomsel("noh and same fragment as residue %d"
+                        % ligids[0], molid=samp.molids[0]))
+
+    # Find average structure for each cluster
+    clustmeans = {}; num = {}
+    for mx, molid in enumerate(sorted(samp.molids)):
+        for i, l in enumerate(sorted(set(atomsel("resname %s"
+                                                 % " ".join(samp.ligands),
+                molid=molid).get("residue")))):
+            mask = vmdnumpy.atomselect(molid, 0,
+                                       "noh and same fragment as residue %d" % l)
+            for frame in range(molecule.numframes(molid)):
+                c = clust[mx*samp.num_ligands+i][frame]
+
+                # Handle uninitialized cluster
+                if clustmeans.get(c) is None:
+                    clustmeans[c] = np.zeros((ligheavyatoms, 3))
+                    num[c] = 0.
+                clustmeans[c] += np.compress(mask,
+                                             vmdnumpy.timestep(molid, frame),
+                                             axis=0)
+                num[c] += 1.
+
+    # Now the sum is finished, do the division
+    for cl in clustmeans:
+        clustmeans[cl] = np.divide(clustmeans[cl], num[cl])
+
+    samp.clustmeans = clustmeans
+    return clustmeans
+
+#==============================================================================
+
+def clusters_near(samp, clust, selection, radius, molid=None):
+    """
+    Get clusters near an atom selection
+
+    Args:
+        samp (Sampler): MSM trajectory
+        clust (clusters): Clusters
+        selection (string): Atom selection to look near
+        radius (float): Distance to return clusters near
+        molid (int): Molecule id for selection, defaults to first
+
+    Returns:
+        (list of cluster labels): Clusters within radius of selection
+    """
+    if molid is None:
+        molid = samp.molids[0]
+
+    clustmeans = {k:np.mean(v, axis=0) for k,v in cluster_averages(samp, clust).items()}
+
+    tmask = vmdnumpy.atomselect(molid, 0, selection)
+    bound = np.mean(np.compress(tmask, vmdnumpy.timestep(molid, 0), axis=0),
+                    axis=0)
+
+    dists = {}
+    for c in clustmeans:
+        d = np.sum(np.sqrt(np.sum((bound-clustmeans[c])**2)))
+        dists[c] = d
+
+    return sorted([c for c in dists if dists[c] < radius],
+                  key = lambda x: dists[x])
 
 #==============================================================================
 
@@ -459,32 +566,8 @@ def closest_to_bound(samp, clust, msm, truesel, trueid):
     Returns:
         (list of float/int): Cluster labels, in order, of closest to bound
     """
-    # Get the number of heavy atoms in one ligand
-    ligids = sorted(set(atomsel("resname %s" % " ".join(samp.ligands),
-                                molid=samp.molids[0]).get("residue")))
-    ligheavyatoms = len(atomsel("noh and same fragment as residue %d"
-                        % ligids[0], molid=samp.molids[0]))
-
-    # Find average structure for each cluster
-    clustmeans = {}; num = {}
-    for mx, molid in enumerate(sorted(samp.molids)):
-        for i, l in enumerate(sorted(set(atomsel("resname %s" % " ".join(samp.ligands),
-                molid=molid).get("residue")))):
-            mask = vmdnumpy.atomselect(molid, 0,
-                                       "noh and same fragment as residue %d" % l)
-            for frame in range(molecule.numframes(molid)):
-                c = clust[mx*samp.num_ligands+i][frame]
-
-                # Handle uninitialized cluster
-                if clustmeans.get(c) is None:
-                    clustmeans[c] = np.zeros((ligheavyatoms, 3))
-                    num[c] = 0.
-                clustmeans[c] += np.compress(mask, vmdnumpy.timestep(molid, frame), axis=0)
-                num[c] += 1.
-
-    # Now the sum is finished, do the division
-    for cl in clustmeans:
-        clustmeans[cl] = np.divide(clustmeans[cl], num[cl])
+    # Get the average clusters
+    clustmeans = cluster_averages(samp, clust)
 
     # Get the atom selection mask for the known bound ligand
     tmask = vmdnumpy.atomselect(trueid, 0, "noh and (%s)" % truesel)
@@ -517,21 +600,45 @@ def show_binding_pathway(samp, bound, clust, msm, scores=None):
             the closest one to the known bound pose, not including bulk solvent.
     """
     # Compute scores if undefined
+    clear_representations(samp)
     if scores is None:
         scores = hub_scores(msm)
 
     # Identify the solvent cluster and the bound cluster
     solvent = np.argmax(scores)
 
-    # Get the top pathway and remove solvent from it
-    flux = net_fluxes(sources=[solvent], sinks=[bound], msm=msm)
-    pathway = list(top_path(sources=[solvent], sinks=[bound], net_flux=flux)[0])
-    print(pathway)
+    # Handle single cluster
+    if type(bound) != type(list()):
+        bound = [bound]
 
-    # Visualize representative ligands in pathway
-    draw_representative_ligands(samp, clust, pathway,
-                                colors=range(len(pathway)))
+    # Get the top pathway and remove solvent from it
+    # Do this for each specified cluster since we want path to each cluster
+    pathway = []
+    for b in bound:
+        flux = net_fluxes(sources=[solvent], sinks=[b], msm=msm)
+        path = list(top_path(sources=[solvent], sinks=[b], net_flux=flux)[0])
+        pathway.append(path)
+        print(path)
+
+        # Visualize representative ligands in pathway
+        draw_representative_ligands(samp, clust, path,
+                                    colors=range(len(path)),
+                                    protein=False, bulk=solvent)
     return pathway
 
+#==============================================================================
+def smooth_savitsky_golay(molid, window=5, polyorder=3):
+    from scipy.signal import savgol_filter
+
+    smoother = np.empty((molecule.numframes(molid), molecule.numatoms(molid)*3))
+    print smoother.shape
+    for t in range(molecule.numframes(molid)):
+        smoother[t] = vmdnumpy.timestep(molid, t).flatten()
+
+    smoothed = savgol_filter(smoother, window, polyorder, axis=0, mode="nearest")
+
+    for t in range(molecule.numframes(molid)):
+        conv = smoothed[t].reshape((molecule.numatoms(molid), 3))
+        np.copyto(vmdnumpy.timestep(molid, t), conv)
 #==============================================================================
 
