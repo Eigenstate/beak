@@ -185,7 +185,7 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align):
                      key=lambda x: int(x.replace(os.path.join(eqdir, "Eq_"),
                                                  "").replace(".nc", "")))
         for e in eqs:
-            tempfile.write("trajin %s 1 last %d\n" % e, int(skip)*8)
+            tempfile.write("trajin %s 1 last %d\n" % (e, int(skip)*8))
 
     # Last equilibration in
     tempfile.write("trajin %s 1 last %d\n" % (os.path.join(proddir, "Eq_6.nc"), int(skip)*8))
