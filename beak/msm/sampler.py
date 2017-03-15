@@ -7,6 +7,7 @@ import molrep
 import numpy as np
 import os
 import trans
+import display
 import vmdnumpy
 from atomsel import atomsel
 from configparser import RawConfigParser
@@ -16,8 +17,12 @@ from msmbuilder.msm import MarkovStateModel
 from msmbuilder.tpt import hub_scores
 from msmbuilder.utils import load
 from socket import gethostname
+try:
+    from VMD import evaltcl
+except:
+    from vmd import evaltcl
 
-#==============================================================================
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 class Sampler(object):
 
@@ -34,6 +39,10 @@ class Sampler(object):
             firstgen (int): First generation to read in (1)
             sampstride (int): Only read in every Nth sampler
         """
+        # Set visualization stuff
+        evaltcl("color scale method BGR")
+        evaltcl("display projection Orthographic")
+
         self.config = RawConfigParser()
         self.config.read(configfile)
 
@@ -173,8 +182,11 @@ class Sampler(object):
                     a = molecule.load("psf",
                                       os.path.abspath(self.config["system"]["topologypsf"]))
                 g = glob(os.path.join(self.dir, "production", str(gen),
-                                      str(rep), "Reimaged_*.nc"))
+                                      str(rep), "Reimaged_Eq1*.nc"))
                 assert(len(g)==1 or len(g)==0)
+                if len(g) == 0:
+                    g = glob(os.path.join(self.dir, "production", str(gen),
+                                          str(rep), "Reimaged_Eq6*.nc"))
                 if len(g) == 0:
                     print("Missing reimaged file for %d, skipping" % rep)
                     counter -= 1
@@ -205,3 +217,151 @@ class Sampler(object):
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+class ClusterSampler(object):
+
+    def __init__(self, configfile, generation):
+        """
+        Creates a sampler explorer object.
+
+        Args:
+            configfile (str): Configuration file to read generation and
+                file info from
+            generation (int): Last generation to read in
+        """
+        # Set visualization stuff
+        evaltcl("color scale method BGR")
+        evaltcl("display projection Orthographic")
+
+        self.config = RawConfigParser()
+        self.config.read(configfile)
+
+        self.ligands = self.config["system"]["ligands"].split(',')
+        self.num_ligands = int(self.config["system"]["num_ligands"])
+        self.generation = generation
+
+        assert(generation <= int(self.config["production"]["generation"]))
+        self.nreps = int(self.config["model"]["samplers"])
+        self.dir = self.config["system"]["rootdir"]
+        if gethostname() == "platyrhynchos":
+            self.dir = self.dir.replace("/scratch/PI/rondror/rbetz/",
+                                        "/home/robin/Work/Projects/thesis/sherlock/")
+        self.name = self.config["system"]["jobname"]
+
+        # List all of the filenames so we can look them up later
+        self.prodfiles = []
+        for gen in range(1, self.generation+1):
+            # Yields gen/0/Reim, gen/1/Reim, gen/2/Reim, ...
+            self.prodfiles.extend(
+                sorted(glob(os.path.join(self.dir, "production",
+                                         str(gen), "*",
+                                         "Reimaged_*.nc")),
+                       key=lambda x: int(x.split('/')[-2])))
+
+        # Actually load all the data
+        self.molids = []
+        self.rmsds = None
+        self.load_clusters()
+
+        # Find and load the msm, and clusters
+        substr = os.path.join(self.dir, "production", str(self.generation))
+        self.mmsm = load(os.path.join(substr, "mmsm_G%d.pkl" % self.generation))
+        self.msm = load(os.path.join(substr, "msm_G%d.pkl" % self.generation))
+        self.clust = load(os.path.join(substr,"testing.cluster.pkl"))
+        self.scores = []
+        if os.path.isfile(os.path.join(substr, "mmsm_scores.pkl")):
+            print("Loading scores")
+            self.scores = load(os.path.join(substr, "mmsm_scores.pkl"))
+        else:
+            print("Couldn't find scores: %s"
+                  % os.path.join(substr, "mmsm_scores.pkl"))
+
+        # Handle saved pre-msm clusters, as naming scheme changed...
+        if os.path.isfile(os.path.join(substr, "testing.mcluster.pkl")):
+            self.mclust = load(os.path.join(substr, "testing.mcluster.pkl"))
+        else:
+            self.mclust = clust
+            self.clust = None
+
+        for gen in range(1, self.generation+1):
+            # Yields gen/0/Reim, gen/1/Reim, gen/2/Reim, ...
+            self.prodfiles.extend(
+                sorted(glob(os.path.join(self.dir, "production",
+                                         str(gen), "*",
+                                         "Reimaged_*.nc")),
+                       key=lambda x: int(x.split('/')[-2])))
+
+    #==============================================================================
+
+    def __del__(self):
+        for m in self.molids:
+            molecule.delete(m)
+        del self.mclust
+        if self.clust is not None:
+            del self.clust
+
+    #==============================================================================
+
+    def load_clusters(self):
+        """
+        Loads all of the clusters associated with a generation
+
+        Args:
+            dir (str): Path to root directory
+            generation (int): Which generation to load
+
+        Returns:
+            (list of int): Loaded molids
+            (dict int -> float): RMSD of each molid to cluster mean
+        """
+
+        with open(os.path.join(self.dir, "clusters", str(self.generation), "rmsds")) as fn:
+            lines = fn.readlines()
+
+        rmsds = {int(x.split()[0].strip()): float(x.split()[1].strip()) for x in lines}
+
+        for molname in sorted(glob(os.path.join(self.dir, "clusters", str(self.generation), "*.mae")),
+                              key=lambda x: int(x.split('/')[-1].replace(".mae", ""))):
+            nam = molname.split('/')[-1].replace(".mae","")
+            a = molecule.load("mae", molname)
+            molecule.rename(a, "%d_%s" % (self.generation, nam))
+
+            # Get per-atom rmsd
+            if self.rmsds is None:
+                nheavy = len(atomsel("noh and same fragment as "
+                                     "(resname %s)" % " ".join(self.ligands),
+                                     a))
+                self.rmsds = { k:v/float(nheavy) for k,v in rmsds.items() }
+
+            atomsel("all", molid=a).set("user", self.rmsds[int(nam)])
+
+            molrep.delrep(a, 0)
+            molrep.addrep(a, style="NewRibbons", material="Opaque",
+                          selection="protein and not same fragment as "
+                                    "(resname %s)" % " ".join(self.ligands),
+                                    color="User")
+            if len(self.molids) > 1:
+                molrep.set_visible(a, molrep.num(a)-1, False)
+            molrep.set_scaleminmax(a, molrep.num(a)-1, 0, 10.)
+            molrep.addrep(a, style="Licorice", material="Opaque",
+                          selection="noh and same fragment as "
+                                    "(resname %s)" % " ".join(self.ligands),
+                                    color="User")
+            molrep.set_scaleminmax(a, molrep.num(a)-1, 0, 10.)
+            self.molids.append(a)
+
+        # Align
+        refsel = atomsel("protein and not same fragment as "
+                         "(resname %s)" % " ".join(self.ligands),
+                         molid=self.molids[0], frame=0)
+
+        for m in self.molids:
+            for frame in range(molecule.numframes(m)):
+                psel = atomsel("protein and not same fragment as "
+                               "(resname %s)" % " ".join(self.ligands),
+                               molid=m, frame=frame)
+                tomove = psel.fit(refsel)
+                atomsel("all", molid=m, frame=frame).move(tomove)
+
+    #==========================================================================
+
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
