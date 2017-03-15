@@ -1,23 +1,35 @@
 #!/usr/bin/env python
-
+"""
+Does reimaging, either as a standalone python script or
+an importable function
+"""
+from __future__ import print_function
 from glob import glob
 import os
 import re
 import subprocess
 import sys
 import itertools
-import vmd, molecule
-from atomsel import atomsel
+try:
+    from vmd import molecule, atomsel
+    atomsel = atomsel.atomsel
+except ImportError:
+    import vmd
+    import molecule
+    from atomsel import atomsel
 
-def groupOutput(inputset):
+#==============================================================================
+
+# pylint: disable=missing-docstring,invalid-name
+def group_output(inputset):
     """
     Groups the integers in input set into ranges
     in a string parseable by parseSelection
     """
     # Find ranges using itertools
     def ranges(i):
-        for a,b in itertools.groupby(enumerate(i),
-                                     lambda (x,y): y-x):
+        for _, b in itertools.groupby(enumerate(i),
+                                      lambda (x, y): y-x):
             b = list(b)
             yield b[0][1], b[-1][1]
     l = list(ranges(inputset))
@@ -25,9 +37,12 @@ def groupOutput(inputset):
     # Put tuples together into a passable list
     result = ""
     for i in l:
-        if i[0] == i[1]: result += "%d," % i[0]
-        else: result += "%d-%d," % (i[0]-1,i[1]+1)
+        if i[0] == i[1]:
+            result += "%d," % i[0]
+        else:
+            result += "%d-%d," % (i[0]-1, i[1]+1)
     return result[:-1]
+# pylint: enable=missing-docstring,invalid-name
 
 #==============================================================================
 
@@ -44,15 +59,16 @@ def check_empty(filename):
     checker = subprocess.Popen(["ncdump", "-h", filename],
                                stdout=subprocess.PIPE)
     output = checker.stdout.read()
-    r = re.compile("\(\d+ currently\)")
-    r2 = re.compile("\d+")
-    match  = r.search(output)
+    r = re.compile(r"\(\d+ currently\)")
+    r2 = re.compile(r"\d+")
+    match = r.search(output)
     if match is None: return True
     m2 = r2.search(match.group())
     if m2 is None: return True
     return not bool(int(m2.group()))
 
 #==============================================================================
+
 def get_protein_residues(psf):
     """
     Gets the prmtop ids of the resids of the first chain
@@ -67,11 +83,14 @@ def get_protein_residues(psf):
     nma = min(atomsel('resname NMA').get('residue'))
     return "%d-%d" % (ace, nma)
     fragment = set(atomsel('pfrag 1').get('fragment')).pop()
-    print set(atomsel('fragment %d' % fragment).get('resname'))
-    residues = [ x for x in set(atomsel('fragment %d' % fragment).get('residue')) ]
+    print(set(atomsel('fragment %d' % fragment).get('resname')))
+    residues = [x for x in set(atomsel('fragment %d' % fragment).get('residue'))]
     #residues = [ x+1 for x in set(atomsel('protein or resname ACE NMA').get('residue')) ]
     residues.sort()
-    return groupOutput(residues)
+    molecule.delete(molid)
+    return group_output(residues)
+
+#==============================================================================
 
 def reimage(psf, revision, skip, alleq, align):
     """
@@ -105,7 +124,7 @@ def reimage(psf, revision, skip, alleq, align):
             os.path.isdir(os.path.join("production", revision, name))]
     if not dirs:
         raise IOError("No replicates found in directory %s"
-                      % os.path.join("production", revision, name))
+                      % os.path.join("production", revision))
 
     for replicate in dirs:
         reimage_single_dir(psf, replicate, revision, skip, alleq, align)
@@ -113,60 +132,70 @@ def reimage(psf, revision, skip, alleq, align):
 #==============================================================================
 
 def reimage_single_dir(psf, replicate, revision, skip, alleq, align):
+
     # Make em strings
     replicate = str(replicate)
     revision = str(revision)
 
     # Enumerate production files
-    prods = [ x.replace("%s/Prod_"% os.path.join("production", revision, replicate),"").replace(".nc","") for x in
-              glob( "%s/Prod_[0-9]*.nc" % os.path.join("production", revision, replicate) ) if "imaged" not in x ]
-    prods.sort(key=int)
+    proddir = os.path.join("production", revision, replicate)
+    prods = sorted(glob(os.path.join(proddir, "Prod_[0-9]*.nc")),
+                   key=lambda x: int(x.replace(os.path.join(proddir, "Prod_"),
+                                               "").replace(".nc", "")))
     if not len(prods):
         print("NO production simulation in Rev %s Rep %s" % (revision, replicate))
         return
 
+    # Get number of last production file
+    lastnum = int(prods[-1].replace(os.path.join(proddir, "Prod_"), "").replace(".nc", ""))
     # If output file already exists, continue
     if alleq:
-        ofile = os.path.join("production", revision, replicate, "Reimaged_Eq1_to_%s_skip_%s.nc" % (prods[-1], skip))
+        ofile = os.path.join(proddir, "Reimaged_Eq1_to_%d_skip_%s.nc" % (lastnum, skip))
     else:
-        ofile = os.path.join("production", revision, replicate, "Reimaged_Eq6_to_%s_skip_%s.nc" % (prods[-1], skip))
+        ofile = os.path.join(proddir, "Reimaged_Eq6_to_%d_skip_%s.nc" % (lastnum, skip))
     if os.path.isfile(ofile):
         print("EXISTS reimaged file for Rev %s Rep %s" % (revision, replicate))
         return
     else:
         if alleq:
-            rems = glob(os.path.join("production", revision, replicate, "Reimaged_Eq1_to_*_skip_%s.nc" % skip))
+            rems = glob(os.path.join("production", revision, replicate,
+                                     "Reimaged_Eq1_to_*_skip_%s.nc" % skip))
         else:
-            rems = glob(os.path.join("production", revision, replicate, "Reimaged_Eq6_to_*_skip_%s.nc" % skip))
+            rems = glob(os.path.join("production", revision, replicate,
+                                     "Reimaged_Eq6_to_*_skip_%s.nc" % skip))
         for r in rems:
-            num = r.split('_')[3]
-            if num <= prods[-1]:
+            num = int(r.split('_')[3])
+            if num <= lastnum:
                 print("Removing: %s" % r)
                 os.remove(r)
 
     # Now write cpptraj input
-    tempfile = open('production/%s/tempfile' % os.path.join(revision, replicate), 'w')
+    tempfile = open(os.path.join(proddir, "tempfile"), 'w')
 
     if align:
-        tempfile.write("reference %s parm %s [ref]\n" % (psf.replace("psf","inpcrd"), psf))
+        tempfile.write("reference %s parm %s [ref]\n" % (psf.replace("psf", "inpcrd"), psf))
 
     # equilibration written 8x more frequently so downsample
     if alleq:
-        eqs = [ x.replace("equilibration/%s/Eq_"%revision,"").replace(".nc","") for x in
-                glob("equilibration/%s/Eq_[0-5]*.nc" % revision) if "imaged" not in x ]
-        eqs.sort(key=int)
+        # Find if we're MSMing with separate directory or not
+        eqdir = os.path.join("equilibration", revision)
+        if os.path.isdir(os.path.join(eqdir, replicate)):
+            eqdir = os.path.join(eqdir, replicate)
+        eqs = sorted(glob(os.path.join(eqdir, "Eq_[0-5]*.nc")),
+                     key=lambda x: int(x.replace(os.path.join(eqdir, "Eq_"),
+                                                 "").replace(".nc", "")))
         for e in eqs:
-            tempfile.write("trajin equilibration/%s/Eq_%s.nc 1 last %d\n" % (revision, e, int(skip)*8))
+            tempfile.write("trajin %s 1 last %d\n" % e, int(skip)*8)
 
     # Last equilibration in
-    tempfile.write("trajin production/%s/%s/Eq_6.nc 1 last %d\n" % (revision, replicate, int(skip)*8))
+    tempfile.write("trajin %s 1 last %d\n" % (os.path.join(proddir, "Eq_6.nc"), int(skip)*8))
 
     # Read in production data, reimaged
     for p in prods:
-        if "Reimaged" in p: continue
-        pfile = "%s/Prod_%s.nc" % (os.path.join("production", revision, replicate), p)
-        if not check_empty(pfile):
-            tempfile.write("trajin %s\n" % pfile)
+        if "Reimaged" in p:
+            continue
+        if not check_empty(p):
+            tempfile.write("trajin %s\n" % p)
 
     protein_residues = get_protein_residues(psf)
 
@@ -177,11 +206,11 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align):
         tempfile.write("rms toRef ref [ref] @CA\n")
 
     tempfile.write("trajout %s offset %s\n" % (ofile, skip))
-    #tempfile.write("trajout %s/Reimaged_200_to_%s_skip_%s.nc start 1000 offset %s\n" % (os.path.join("production", revision, replicate),prods[-1],skip,skip))
     tempfile.write("go\n")
     tempfile.close()
 
-    subprocess.call("%s/bin/cpptraj -p %s -i %s/tempfile" % (os.environ['AMBERHOME'], psf, os.path.join("production", revision, replicate)), shell=True)
+    subprocess.call("%s/bin/cpptraj -p %s -i %s/tempfile" %
+                    (os.environ['AMBERHOME'], psf, proddir), shell=True)
 
 #==============================================================================
 
@@ -191,10 +220,9 @@ if __name__ == "__main__":
         print("Usage: %s <psf> <revision> <skip> <alleq> <align>" % sys.argv[0])
         quit(1)
 
-    psf = os.path.abspath(sys.argv[1])
-    revision = sys.argv[2]
-    skip = sys.argv[3]
-    alleq = (sys.argv[4] == "True")
-    align = (sys.argv[5] == "True")
-    reimage(psf, revision, skip, alleq, align)
+    reimage(psf=os.path.abspath(sys.argv[1]),
+            revision=sys.argv[2],
+            skip=sys.argv[3],
+            alleq=(sys.argv[4] == "True"),
+            align=(sys.argv[5] == "True"))
 
