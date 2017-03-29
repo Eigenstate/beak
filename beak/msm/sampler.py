@@ -341,7 +341,6 @@ class ClusterSampler(object):
                 nheavy = len(atomsel("noh and same fragment as "
                                      "(resname %s)" % " ".join(self.ligands),
                                      a))
-                #self.rmsds = { k:v/float(nheavy) for k,v in rmsds.items() }
                 self.rmsds = rmsds
 
             atomsel("all", molid=a).set("user", self.rmsds[int(nam)])
