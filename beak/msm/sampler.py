@@ -7,6 +7,7 @@ import molrep
 import numpy as np
 import os
 import trans
+import h5py
 import display
 import vmdnumpy
 from atomsel import atomsel
@@ -85,38 +86,38 @@ class Sampler(object):
         # Handle saved pre-msm clusters, as naming scheme changed...
         if os.path.isfile(os.path.join(substr, "testing.mcluster.pkl")):
             mclust = load(os.path.join(substr, "testing.mcluster.pkl"))
-            mclust = [c[::self.stride] for c in mclust]
-            clust = [c[::self.stride] for c in clust]
+            self.mclust = [c[::self.stride] for c in mclust]
+            self.clust = [c[::self.stride] for c in clust]
         else:
-            mclust = [c[::self.stride] for c in clust]
-            clust = None
+            self.mclust = [c[::self.stride] for c in clust]
+            self.clust = None
 
         # Stride it correctly
         self.tica = [t[::self.stride] for t in tica]
 
         # Based on first generation read in, trim others
-        offset = sum(len(glob(os.path.join(self.dir, "production",
-                                            str(gen), "*",
-                                            "Reimaged_*.nc"))) \
-                     for gen in range(1, self.firstgen)) * self.num_ligands
+        #offset = sum(len(glob(os.path.join(self.dir, "production",
+        #                                    str(gen), "*",
+        #                                    "Reimaged_*.nc"))) \
+        #             for gen in range(1, self.firstgen)) * self.num_ligands
 
-        print("OFFSET: %d" % offset)
+        #print("OFFSET: %d" % offset)
 
-        tica = tica[offset:]
-        mclust = mclust[offset:]
-        if clust is not None:
-            clust = clust[offset:]
-        assert len(tica) == len(mclust)
+        #tica = tica[offset:]
+        #mclust = mclust[offset:]
+        #if clust is not None:
+        #    clust = clust[offset:]
+        #assert len(tica) == len(mclust)
 
-        # Handle sample striding. Can't use array slicing since need a few in a row
-        self.tica = []
-        self.mclust = []
-        self.clust = []
-        for i in [_ for _ in range(len(tica)/self.num_ligands) if _ % self.sampstride==0]:
-            self.tica.extend(tica[i*self.num_ligands:(i+1)*self.num_ligands])
-            self.mclust.extend(mclust[i*self.num_ligands:(i+1)*self.num_ligands])
-            if self.clust is not None:
-                self.clust.extend(clust[i*self.num_ligands:(i+1)*self.num_ligands])
+        ## Handle sample striding. Can't use array slicing since need a few in a row
+        #self.tica = []
+        #self.mclust = []
+        #self.clust = []
+        #for i in [_ for _ in range(len(tica)/self.num_ligands) if _ % self.sampstride==0]:
+        #    self.tica.extend(tica[i*self.num_ligands:(i+1)*self.num_ligands])
+        #    self.mclust.extend(mclust[i*self.num_ligands:(i+1)*self.num_ligands])
+        #    if self.clust is not None:
+        #        self.clust.extend(clust[i*self.num_ligands:(i+1)*self.num_ligands])
 
     #==========================================================================
 
@@ -134,8 +135,18 @@ class Sampler(object):
         """
         Loads features on demand
         """
+        featurized = self.config["system"]["featurized"]
+        feats = []
         for gen in range(self.firstgen, self.generation+1):
-            self.features.extend(self.config["system"]["featurized"] % gen)
+            if os.path.isfile("%s.h5" % featurized % gen):
+                h5f = h5py.File("%s.h5" % featurized % gen, 'r')
+                for i in sorted(h5f.keys(), key=int):
+                    feats.append(h5f[i][:])
+                h5f.close()
+            else:
+                feats.extend(load("%s.pkl" % featurized % gen))
+
+        self.features = [f[::self.stride] for f in feats]
 
     #==========================================================================
 
@@ -330,7 +341,8 @@ class ClusterSampler(object):
                 nheavy = len(atomsel("noh and same fragment as "
                                      "(resname %s)" % " ".join(self.ligands),
                                      a))
-                self.rmsds = { k:v/float(nheavy) for k,v in rmsds.items() }
+                #self.rmsds = { k:v/float(nheavy) for k,v in rmsds.items() }
+                self.rmsds = rmsds
 
             atomsel("all", molid=a).set("user", self.rmsds[int(nam)])
 

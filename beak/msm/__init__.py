@@ -3,7 +3,8 @@
 __version__ = '0.0.0a1'
 __author__  = 'Robin Betz'
 
-from . import visualizers
+import visualizers
+import clustervis
 
 from sampler import Sampler
 

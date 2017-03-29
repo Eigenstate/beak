@@ -5,6 +5,7 @@ change what is visualized
 import math
 import numpy as np
 from msmbuilder.tpt import hub_scores, top_path, net_fluxes
+
 try:
     from vmd import *
     atomsel = atomsel.atomsel
@@ -77,7 +78,19 @@ def get_representative_ligand(samp, cluster, data=None):
     # Find the closest frame to that one
     rmsd = []
     for molid, frame, ligand in molframes:
-        rmsd.append(np.sum(np.sqrt(np.sum((np.compress(masks["%d-%d" %(molid,ligand)], vmdnumpy.timestep(molid, frame), axis=0)-mean)**2, axis=1)) ))
+        rmsd.append(
+            np.sqrt(                                                  # Take sqrt of everything
+                1./len(molframes)*                                    # Divide by number of frames
+                np.sum(                                               # Sum over all frames
+                       (np.compress(masks["%d-%d" % (molid, ligand)], # One ligand set of atoms
+                                    vmdnumpy.timestep(molid, frame),
+                                    axis=0) - mean                    # Difference from the mean
+                       )**2,                                          # Square it, since it's distancesqrard
+                    axis=1
+                )
+            )
+        )
+        #rmsd.append(np.sum(np.sqrt(np.sum((np.compress(masks["%d-%d" %(molid,ligand)], vmdnumpy.timestep(molid, frame), axis=0)-mean)**2, axis=1)) ))
 
     return molframes[np.argmin(rmsd)], min(rmsd)
 
@@ -206,8 +219,8 @@ def color_ligands(samp, data, featidx):
     rge = max(max(d[:,featidx]) for d in data) - minl
 
     for mx,m in enumerate(sorted(samp.molids)):
-        ligands = sorted(set(atomsel("resname %s" % " ".join(ligands)),
-                                     molid=m).get("residue"))
+        ligands = sorted(set(atomsel("resname %s" % " ".join(samp.ligands),
+                                     molid=m).get("residue")))
         sels = [ atomsel("same fragment as residue %d" % l, m) for l in ligands ]
         for i,s in enumerate(sels):
             assert len(data[mx*len(ligands)+i]) == molecule.numframes(m)
@@ -627,7 +640,13 @@ def show_binding_pathway(samp, bound, clust, msm, scores=None):
     return pathway
 
 #==============================================================================
+
 def smooth_savitsky_golay(molid, window=5, polyorder=3):
+    """
+    Smooths the trajectory associated with molid
+    Modifies the coordinates in place!
+    """
+
     from scipy.signal import savgol_filter
 
     smoother = np.empty((molecule.numframes(molid), molecule.numatoms(molid)*3))
@@ -640,5 +659,5 @@ def smooth_savitsky_golay(molid, window=5, polyorder=3):
     for t in range(molecule.numframes(molid)):
         conv = smoothed[t].reshape((molecule.numatoms(molid), 3))
         np.copyto(vmdnumpy.timestep(molid, t), conv)
-#==============================================================================
 
+#==============================================================================
