@@ -78,18 +78,19 @@ def get_representative_ligand(samp, cluster, data=None):
     # Find the closest frame to that one
     rmsd = []
     for molid, frame, ligand in molframes:
-        rmsd.append(
-            np.sqrt(                                                  # Take sqrt of everything
-                1./len(molframes)*                                    # Divide by number of frames
-                np.sum(                                               # Sum over all frames and atoms
-                       (np.compress(masks["%d-%d" % (molid, ligand)], # One ligand set of atoms
-                                    vmdnumpy.timestep(molid, frame),
-                                    axis=0) - mean                    # Difference from the mean
-                       )**2,                                          # Square it, since it's distancesqrard
-                )
-            )
-       )
-        #rmsd.append(np.sum(np.sqrt(np.sum((np.compress(masks["%d-%d" %(molid,ligand)], vmdnumpy.timestep(molid, frame), axis=0)-mean)**2, axis=1)) ))
+       # rmsd.append(
+       #     np.sqrt(                                                  # Take sqrt of everything
+       #         1./len(molframes)*                                    # Divide by number of frames
+       #         np.sum(                                               # Sum over all frames
+       #                (np.compress(masks["%d-%d" % (molid, ligand)], # One ligand set of atoms
+       #                             vmdnumpy.timestep(molid, frame),
+       #                             axis=0) - mean                    # Difference from the mean
+       #                )**2,                                          # Square it, since it's distancesqrard
+       #             axis=1
+       #         )
+       #     )
+       #)
+        rmsd.append(1./ligheavyatoms*np.sqrt(np.sum(np.sum((np.compress(masks["%d-%d" %(molid,ligand)], vmdnumpy.timestep(molid, frame), axis=0)-mean)**2, axis=1)) ))
 
     return molframes[np.argmin(rmsd)], min(rmsd)
 
