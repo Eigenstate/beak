@@ -7,4 +7,5 @@ import visualizers
 import clustervis
 
 from sampler import Sampler
+from utils import *
 
