@@ -108,7 +108,8 @@ def get_cluster_center(prodfiles, clusts, cluster, ligands, topology):
         # Read in a new molecule
         molid = molecule.load("psf", topology if os.path.isfile(topology)
                               else get_psf_from_traj(trajfile, topology))
-        molecule.read(molid, "netcdf", trajfile, waitfor=-1)
+        molecule.read(molid, "dcd" if ".dcd" in trajfile else "netcdf",
+                      trajfile, waitfor=-1)
 
         # Get residue number for each ligand
         ligids = sorted(set(atomsel("resname %s" % " ".join(ligands),
@@ -133,6 +134,12 @@ def get_cluster_center(prodfiles, clusts, cluster, ligands, topology):
                 frames = [_ for _, d in enumerate(clusts[cidx]) if np.isnan(d)]
             else:
                 frames = [_ for _, d in enumerate(clusts[cidx]) if d == cluster]
+            if not len(frames): continue # No frames represented
+            if len(clusts[cidx]) != molecule.numframes(molid):
+                raise ValueError("Frames mismatch between trajidx %d clustidx %d" \
+                                 "I have %d, %d\nFilename was %s"
+                                 % (trajidx,cidx, len(clusts[cidx]),
+                                    molecule.numframes(molid), trajfile))
 
             # Add frames to running total
             count += len(frames)
@@ -142,17 +149,20 @@ def get_cluster_center(prodfiles, clusts, cluster, ligands, topology):
                 dev.append(np.sqrt(1./ligheavyatoms *
                                    np.sum((np.compress(mask, vmdnumpy.timestep(molid, f),
                                                        axis=0) - (mean/float(count)))**2,
-                                          axis=1)))
+                                          )))
 
             # Find if there's a more representative frame in this structure
             if bestpos is not None:
                 olddev = np.sqrt(1./ligheavyatoms * np.sum((bestpos-(mean/float(count)))**2,
-                                                           axis=1))
-            if min(dev) < olddev or bestpos is None:
+                                                           ))
+            else:
+                olddev = 10000000. # Just guarantee it's larger
+
+            if bestpos is None or min(dev) < olddev:
                 bestpos = np.compress(mask,
                                       vmdnumpy.timestep(molid, frames[np.argmin(dev)]),
                                       axis=0)
-                bestidx = [(trajidx, molid, lig), min(dev)]
+                bestidx = [(trajfile, frames[np.argmin(dev)], lig), min(dev)]
                 print("Found a better mean: %f" % min(dev))
             else:
                 bestidx[1] = olddev # Update score in case it's better now
@@ -184,12 +194,17 @@ def save_cluster_centers(prodfiles, clust, msm, ligands, outdir, topology):
     for cl in msm.mapping_.values():
         print("On cluster: %s" % cl)
         lg, rms = get_cluster_center(prodfiles, clust, cl, ligands, topology)
-        m, f, l = lg
-        print("  Molid: %d\tFrame: %d\tLigand: %d" % (m, f, l))
+        t, f, l = lg
+        m = molecule.load("psf", topology if os.path.isfile(topology)
+                          else get_psf_from_traj(t, topology))
+        molecule.read(m, "dcd" if ".dcd" in t else "netcdf",
+                      t, beg=f, end=f, waitfor=-1)
+        print("  Trajectory: %s\tFrame: %d\tLigand: %d" % (t, f, l))
         fn.write("%s\t%f\n" % (cl, rms))
         atomsel("(%s) or (same fragment as residue %d)" % (protsel, l),
                 molid=m, frame=f).write("mae",
                                         os.path.join(outdir, "%s.mae" % cl))
+        molecule.delete(m)
     fn.close()
 
 #==============================================================================
