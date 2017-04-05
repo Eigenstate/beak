@@ -5,8 +5,13 @@ from __future__ import print_function
 import os
 import h5py
 import numpy as np
-from vmd import atomsel, molecule, vmdnumpy
-atomsel = atomsel.atomsel
+try:
+    from vmd import atomsel, molecule, vmdnumpy
+    atomsel = atomsel.atomsel
+except:
+    import vmd
+    import molecule, vmdnumpy
+    from atomsel import atomsel
 
 #==============================================================================
 
