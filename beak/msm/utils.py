@@ -61,7 +61,7 @@ def load_features_h5(filename):
 
 #==============================================================================
 
-def get_psf_from_traj(filename, rootdir):
+def get_topology(filename, rootdir):
     """
     Returns the psf file corresponding to a given trajectory file,
     using my directory layout. No fallback for older psfs.
@@ -71,13 +71,18 @@ def get_psf_from_traj(filename, rootdir):
         rootdir (str): Root directory of simulation
 
     Returns:
-        (str): File name of corresponding psf
+        (str): File name of corresponding topology. Could be psf or prmtop.
     """
     rep = filename.split('/')[-2]
     gen = filename.split('/')[-3]
-    psf = os.path.join(rootdir, "systems", gen, "%s.psf" % rep)
 
-    return psf
+    # Handle special psf case for stripped trajectories
+    if "strip" in filename:
+        topo = os.path.join(rootdir, "systems", gen, "%s_stripped.prmtop" % rep)
+    else:
+        topo = os.path.join(rootdir, "systems", gen, "%s.psf" % rep)
+
+    return topo
 
 #==============================================================================
 
@@ -156,21 +161,24 @@ class ClusterCenter(object):
         return dev
 
 
-    def save_mae(self, filename, topology, protsel):
+    def save_mae(self, filename, topofile, protsel):
         """
         Saves the cluster center as a mae file
 
         Args:
             filename (str): Filename to write
-            topology (str): Either a psf file or a root directory in
+            topofile (str): Either a psf file or a root directory in
                             which to find topologies
             protsel (str): Protein selection string
         """
         print("  Trajectory: %s\nFrame: %d\tLigand: %d"
               % (self.reptraj, self.repframe, self.repligid))
 
-        m = molecule.load("psf", topology if os.path.isfile(topology)
-                          else get_psf_from_traj(self.reptraj, topology))
+        if os.path.isfile(topofile):
+            topo = topofile
+        else:
+            topo = get_topology(self.reptraj, topofile)
+        m = molecule.load("psf" if "psf" in topo else "parm7", topo)
         molecule.read(m, "dcd" if ".dcd" in self.reptraj else "netcdf",
                       self.reptraj, beg=self.repframe, end=self.repframe,
                       waitfor=-1)
@@ -206,8 +214,12 @@ def get_cluster_centers(prodfiles, clusts, clusters, ligands, topology):
 
     for trajidx, trajfile in enumerate(prodfiles):
         # Read in a new molecule
-        molid = molecule.load("psf", topology if os.path.isfile(topology)
-                              else get_psf_from_traj(trajfile, topology))
+        if os.path.isfile(topology):
+            topofile = topology
+        else:
+            topofile = get_topology(trajfile, topology)
+
+        molid = molecule.load("psf" if "psf" in topo else "parm7", topofile)
         molecule.read(molid, "dcd" if ".dcd" in trajfile else "netcdf",
                       trajfile, waitfor=-1)
 
