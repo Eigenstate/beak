@@ -210,6 +210,7 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align,
         tempfile.write("rms toRef ref [ref] @CA\n")
 
     if stripmask is not None:
+        ofile.replace("Reimaged_", "Reimaged_strip_")
         tempfile.write("strip (%s) parmout %s\n"
                        % (stripmask, psf.replace(".psf", "_stripped.prmtop")))
     tempfile.write("trajout %s offset %s\n" % (ofile, skip))
