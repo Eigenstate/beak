@@ -4,7 +4,7 @@ import os
 import sys
 
 packages = ['beak', 'beak.render', 'beak.analyze', 'beak.msm']
-scripts = ['beak/reimage.py']
+scripts = ['beak/reimage']
 package_data = {
         }
 

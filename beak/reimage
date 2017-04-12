@@ -7,6 +7,7 @@ from __future__ import print_function
 from glob import glob
 import os
 import re
+import argparse
 import subprocess
 import sys
 import itertools
@@ -62,7 +63,7 @@ def check_empty(filename):
     r = re.compile(r"\(\d+ currently\)")
     r2 = re.compile(r"\d+")
     match = r.search(output)
-    if match is None: return True
+    if match is None:return True
     m2 = r2.search(match.group())
     if m2 is None: return True
     return not bool(int(m2.group()))
@@ -92,7 +93,7 @@ def get_protein_residues(psf):
 
 #==============================================================================
 
-def reimage(psf, revision, skip, alleq, align):
+def reimage(psf, revision, skip, alleq, align, stripmask=None):
     """
     Reimages all Prod_[0-9]*.nc files in a given directory
     into one Prod_all_reimaged.nc file, with the protein at
@@ -104,6 +105,7 @@ def reimage(psf, revision, skip, alleq, align):
         skip (int): Offset
         alleq (bool): Whether or not to include all equilibration setps
         align (bool): Whether or not to also align the trajectory
+        stripmask (str): AMBER selection to remove from reimaged trajectory
 
     Raises:
         IOError if the topology file is not present
@@ -127,11 +129,13 @@ def reimage(psf, revision, skip, alleq, align):
                       % os.path.join("production", revision))
 
     for replicate in dirs:
-        reimage_single_dir(psf, replicate, revision, skip, alleq, align)
+        reimage_single_dir(psf, replicate, revision, skip, alleq, align,
+                           stripmask)
 
 #==============================================================================
 
-def reimage_single_dir(psf, replicate, revision, skip, alleq, align):
+def reimage_single_dir(psf, replicate, revision, skip, alleq, align,
+                       stripmask=None):
 
     # Make em strings
     replicate = str(replicate)
@@ -205,6 +209,9 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align):
     if align:
         tempfile.write("rms toRef ref [ref] @CA\n")
 
+    if stripmask is not None:
+        tempfile.write("strip (%s) parmout %s\n"
+                       % (stripmask, psf.replace(".psf", "_stripped.prmtop")))
     tempfile.write("trajout %s offset %s\n" % (ofile, skip))
     tempfile.write("go\n")
     tempfile.close()
@@ -216,13 +223,32 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align):
 
 if __name__ == "__main__":
     # Process args
-    if len(sys.argv) != 6:
-        print("Usage: %s <psf> <revision> <skip> <alleq> <align>" % sys.argv[0])
-        quit(1)
+    parser = argparse.ArgumentParser(prog="reimage")
+    parser.add_argument("-p", "--psf", dest="psf", metavar="<psf>", type=str,
+                        required=True, help="PSF file for simulated system")
+    parser.add_argument("-r", "--revision", dest="revision",
+                        metavar="<revision>", type=str, required=True,
+                        help="Simulation revision number")
+    parser.add_argument("--every", dest="skip", metavar="<N>",
+                        type=int, default=1, help="Save every Nth frame. Defaults"
+                        " to all frames")
+    parser.add_argument("--equilibration", dest="alleq", default=True,
+                        action="store_true", help="Include equilibration trajectories "
+                        "in final reimaged file. Defaults to True.")
+    parser.add_argument("--align", dest="align", default=False,
+                        action="store_true", help="Align frames to input coordinates. "
+                        "Defaults to false.")
+    parser.add_argument("--strip", dest="strip", type=str, default=None,
+                        metavar="<selection>",
+                        help="Atom selection mask for stripped residues. New prmtop "
+                             "will be saved as <psf>_stripped.prmtop")
 
-    reimage(psf=os.path.abspath(sys.argv[1]),
-            revision=sys.argv[2],
-            skip=sys.argv[3],
-            alleq=(sys.argv[4] == "True"),
-            align=(sys.argv[5] == "True"))
+    opts = parser.parse_args(sys.argv[1:])
+
+    reimage(psf=opts.get("psf"),
+            revision=opts.get("revision"),
+            skip=opts.get("skip"),
+            alleq=opts.get("alleq"),
+            align=opts.get("align"),
+            stripmask=opts.get("strip"))
 
