@@ -16,13 +16,16 @@ except:
 
 #==============================================================================
 
-def save_features_h5(dataset, filename):
+def save_features_h5(dataset, filename, num_ligands=0, trajfiles=None):
     """
     Saves the given feature set as an hdf5 file
 
     Args:
         dataset (list of ndarray): Data to save
         filename (str): Filename to save as
+        num_ligands (int): Number of ligands in the system
+        trajfiles (list of str): Filenames of trajectories. This lets the
+            "filename" attribute be populated
 
     Returns:
         True on sucess
@@ -35,6 +38,9 @@ def save_features_h5(dataset, filename):
                            dtype=fset.dtype,
                            data=fset,
                            compression="gzip")
+        if num_ligands:
+            h5f[str(i)].attrs["filename"] = trajfiles[i/num_ligands]
+
     h5f.close()
     return True
 
