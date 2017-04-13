@@ -6,6 +6,7 @@ __author__  = 'Robin Betz'
 import visualizers
 import clustervis
 
-from sampler import Sampler
+from aggregator import ClusterCenter, ClusterDensity
+from sampler import Sampler, ClusterSampler
 from utils import *
 
