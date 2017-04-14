@@ -6,6 +6,7 @@ __author__  = 'Robin Betz'
 from beak.TrajectorySet import TrajectorySet
 from beak.mobility import *
 
+from beak.reimagers import *
 from beak.render import *
 from beak.msm import *
 from beak.analyze import *
