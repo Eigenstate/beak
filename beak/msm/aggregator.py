@@ -265,7 +265,7 @@ class ClusterDensity(object):
         """
         self.prodfiles = prodfiles
         self.clusters = clusters
-        self.dimensions = config["dabble"]["dimensions"].split(',')
+        self.dimensions = [float(d) for d in config["dabble"]["dimensions"].split(',')]
         self.lignames = config["system"]["ligands"].split(',')
         self.rootdir = config["system"]["rootdir"]
 
@@ -284,13 +284,12 @@ class ClusterDensity(object):
                                        bins=self.dimensions,
                                        range=self.ranges,
                                        normed=False)
-        newgrid = Grid(binned, edges=edges, origin=[0., 0., 0.])
 
         if self.grids.get(label):
-            self.grids[label] += newgrid
+            self.grids[label][0] += binned
             self.counts[label] += 1
         else:
-            self.grids[label] = newgrid
+            self.grids[label] = [binned, edges]
             self.counts[label] = 1
 
     #==========================================================================
@@ -345,7 +344,8 @@ class ClusterDensity(object):
                 print("  On trajfile %d of %d" % (i, len(self.prodfiles)))
                 self._process_traj(traj)
 
-        for label, den in self.grids.items():
+        for label, hist in self.grids.items():
+            den = Grid(hist[0], edges=hist[1], origin=[0., 0., 0.])
             den /= float(self.counts[label])
             den.export(os.path.join(outdir, "%s.dx" % label), file_format="dx")
 
