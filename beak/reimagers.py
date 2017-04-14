@@ -161,8 +161,12 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align,
         return
     else:
         if alleq:
-            rems = glob(os.path.join("production", revision, replicate,
-                                     "Reimaged_Eq1_to_*_skip_%s.nc" % skip))
+            if stripmask:
+                rems = glob(os.path.join("production", revision, replicate,
+                                         "Reimaged_strip_Eq1_to_*_skip_%s.nc" % skip))
+            else:
+                rems = glob(os.path.join("production", revision, replicate,
+                                         "Reimaged_Eq1_to_*_skip_%s.nc" % skip))
         else:
             rems = glob(os.path.join("production", revision, replicate,
                                      "Reimaged_Eq6_to_*_skip_%s.nc" % skip))
@@ -209,7 +213,7 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align,
         tempfile.write("rms toRef ref [ref] @CA\n")
 
     if stripmask is not None:
-        ofile.replace("Reimaged_", "Reimaged_strip_")
+        ofile = ofile.replace("Reimaged_", "Reimaged_strip_")
         tempfile.write("strip (%s) parmout %s\n"
                        % (stripmask, psf.replace(".psf", "_stripped.prmtop")))
     tempfile.write("trajout %s offset %s\n" % (ofile, skip))
