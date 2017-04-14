@@ -5,6 +5,7 @@ all trajectory doesn't have to be loaded.
 from __future__ import print_function
 import os
 import numpy as np
+import sys
 #pylint: disable=import-error
 try:
     from vmd import atomsel, molecule, vmdnumpy
@@ -342,6 +343,7 @@ class ClusterDensity(object):
         with VmdSilencer(output=os.path.join(outdir, "vmd.log")):
             for i, traj in enumerate(self.prodfiles):
                 print("  On trajfile %d of %d" % (i, len(self.prodfiles)))
+                sys.stdout.flush()
                 self._process_traj(traj)
 
         for label, hist in self.grids.items():
