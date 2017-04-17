@@ -277,6 +277,7 @@ class ClusterDensity(object):
 
         # Handle optional arguments
         self.maxframe = kwargs.get("maxframe", -1)
+        self.topology = kwargs.get("topology", None)
 
         # Load reference structure
         self.refid = molecule.load("psf", config["system"]["reference"],
@@ -314,7 +315,10 @@ class ClusterDensity(object):
         """
         # Load the trajectory
         assert trajfile in self.prodfiles
-        topofile = utils.get_topology(trajfile, self.rootdir)
+        if not self.topology:
+            topofile = utils.get_topology(trajfile, self.rootdir)
+        else:
+            topofile = self.topology
         molid = molecule.load("psf" if "psf" in topofile else "parm7", topofile)
         molecule.read(molid, "dcd" if ".dcd" in trajfile else "netcdf",
                       trajfile, waitfor=-1, end=self.maxframe)
