@@ -220,8 +220,9 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align,
     tempfile.write("go\n")
     tempfile.close()
 
-    subprocess.call("%s/bin/cpptraj -p %s -i %s/tempfile" %
-                    (os.environ['AMBERHOME'], psf, proddir), shell=True)
+    return subprocess.call("%s/bin/cpptraj -p %s -i %s/tempfile" %
+                           (os.environ['AMBERHOME'], psf, proddir),
+                           shell=True)
 
 #==============================================================================
 
