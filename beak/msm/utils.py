@@ -5,6 +5,7 @@ from __future__ import print_function
 import os
 import h5py
 import numpy as np
+from glob import glob
 from Dabble import VmdSilencer
 try:
     from vmd import atomsel, molecule, vmdnumpy
@@ -89,6 +90,24 @@ def get_topology(filename, rootdir):
         topo = os.path.join(rootdir, "systems", gen, "%s.psf" % rep)
 
     return topo
+
+#==============================================================================
+
+def align(molid, refid, refsel):
+    """
+    Aligns all frames found in the trajectory specified by molid to
+    a reference structure.
+
+    Args:
+        molid (int): VMD molecule ID for loaded trajectory to align
+        refid (int): VMD molecule ID for loaded reference molecule
+        refsel (str): Atom selection string for atoms to align.
+    """
+    ref = atomsel(refsel, molid=refid)
+    for frame in range(molecule.numframes(molid)):
+        psel = atomsel(refsel, molid=molid, frame=frame)
+        tomove = psel.fit(ref)
+        atomsel("all", molid=molid, frame=frame).move(tomove)
 
 #==============================================================================
 

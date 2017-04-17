@@ -275,6 +275,12 @@ class ClusterDensity(object):
         self.grids = {}
         self.counts = {}
 
+        # Load reference structure
+        self.refid = molecule.load("psf", config["system"]["reference"],
+                                   "pdb", config["system"]["reference"].replace("psf", "pdb"))
+        self.refsel = config["system"]["refsel"]
+        self.aselref = atomsel(self.refsel, molid=self.refid)
+
     #==========================================================================
 
     def _update_grid(self, label, data):
@@ -319,6 +325,12 @@ class ClusterDensity(object):
 
         # Go through each frame just once
         for frame in range(molecule.numframes(molid)):
+
+            # Align frame to reference structure
+            psel = atomsel(self.refsel, molid=molid, frame=frame)
+            atomsel("all", molid=molid, frame=frame).move(psel.fit(self.aselref))
+
+            # Update density for each ligand
             for i in range(len(ligids)):
                 coords = np.compress(masks[i],
                                      vmdnumpy.timestep(molid, frame),

@@ -1,31 +1,32 @@
 """
 Contains functionality for loading project-specific datasets
 """
-import vmd
-import molecule
-import molrep
-import numpy as np
+from __future__ import print_function
 import os
-import trans
 import h5py
-import display
-import vmdnumpy
-from atomsel import atomsel
 from configparser import RawConfigParser
 from glob import glob
-from msmbuilder.lumping import PCCAPlus
-from msmbuilder.msm import MarkovStateModel
-from msmbuilder.tpt import hub_scores
 from msmbuilder.utils import load
 from socket import gethostname
+#pylint: disable=import-error,no-name-in-module
 try:
     from VMD import evaltcl
-except:
-    from vmd import evaltcl
+    import vmd
+    import molecule
+    import molrep
+    import vmdnumpy
+    from atomsel import atomsel
+except ImportError:
+    from vmd import evaltcl, molecule, molrep, vmdnumpy, atomsel
+    atomsel = atomsel.atomsel
+#pylint: enable=import-error,no-name-in-module
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 class Sampler(object):
+    """
+    Sampler that loads in all of the trajectory files
+    """
 
     def __init__(self, configfile, generation, stride, firstgen=1,
                  sampstride=1):
@@ -52,7 +53,7 @@ class Sampler(object):
         self.generation = generation
         self.firstgen = firstgen
 
-        assert(generation <= int(self.config["production"]["generation"]))
+        assert generation <= int(self.config["production"]["generation"])
         self.nreps = int(self.config["model"]["samplers"])
         self.dir = self.config["system"]["rootdir"]
         if gethostname() == "platyrhynchos":
@@ -74,7 +75,7 @@ class Sampler(object):
         self.mmsm = load(os.path.join(substr, "mmsm_G%d.pkl" % self.generation))
         self.msm = load(os.path.join(substr, "msm_G%d.pkl" % self.generation))
         tica = load(os.path.join(substr, "testing.tica.pkl"))
-        clust = load(os.path.join(substr,"testing.cluster.pkl"))
+        clust = load(os.path.join(substr, "testing.cluster.pkl"))
         self.scores = []
         if os.path.isfile(os.path.join(substr, "mmsm_scores.pkl")):
             print("Loading scores")
@@ -86,6 +87,7 @@ class Sampler(object):
         # Handle saved pre-msm clusters, as naming scheme changed...
         if os.path.isfile(os.path.join(substr, "testing.mcluster.pkl")):
             mclust = load(os.path.join(substr, "testing.mcluster.pkl"))
+            print("Striding: %d" % self.stride)
             self.mclust = [c[::self.stride] for c in mclust]
             self.clust = [c[::self.stride] for c in clust]
         else:
@@ -96,28 +98,11 @@ class Sampler(object):
         self.tica = [t[::self.stride] for t in tica]
 
         # Based on first generation read in, trim others
-        #offset = sum(len(glob(os.path.join(self.dir, "production",
-        #                                    str(gen), "*",
-        #                                    "Reimaged_*.nc"))) \
-        #             for gen in range(1, self.firstgen)) * self.num_ligands
-
-        #print("OFFSET: %d" % offset)
-
-        #tica = tica[offset:]
-        #mclust = mclust[offset:]
-        #if clust is not None:
-        #    clust = clust[offset:]
-        #assert len(tica) == len(mclust)
-
-        ## Handle sample striding. Can't use array slicing since need a few in a row
-        #self.tica = []
-        #self.mclust = []
-        #self.clust = []
-        #for i in [_ for _ in range(len(tica)/self.num_ligands) if _ % self.sampstride==0]:
-        #    self.tica.extend(tica[i*self.num_ligands:(i+1)*self.num_ligands])
-        #    self.mclust.extend(mclust[i*self.num_ligands:(i+1)*self.num_ligands])
-        #    if self.clust is not None:
-        #        self.clust.extend(clust[i*self.num_ligands:(i+1)*self.num_ligands])
+        offset = -1*self.num_ligands*len(self.molids)
+        self.tica = tica[offset:]
+        self.mclust = mclust[offset:]
+        if clust is not None:
+            self.clust = clust[offset:]
 
     #==========================================================================
 
@@ -135,6 +120,7 @@ class Sampler(object):
         """
         Loads features on demand
         """
+# TODO: use utils
         featurized = self.config["system"]["featurized"]
         feats = []
         for gen in range(self.firstgen, self.generation+1):
@@ -154,15 +140,19 @@ class Sampler(object):
         """
         Aligns all loaded trajectories
         """
-        print("Aligining")
-        refsel = atomsel("protein and not same fragment as resname %s"
-                         % " ".join(self.ligands),
-                         molid=self.molids[0], frame=0)
+        refmol = molecule.load("psf", self.config["system"]["reference"],
+                               "pdb", self.config["system"]["reference"].replace("psf", "pdb"))
+        print("Aligning")
+        refsel = atomsel("(%s) and not same fragment as resname %s"
+                         % (self.config["system"]["refsel"],
+                            " ".join(self.ligands)),
+                         molid=refmol)
 
         for m in self.molids:
             for frame in range(molecule.numframes(m)):
-                psel = atomsel("protein and not same fragment as resname %s"
-                               % " ".join(self.ligands),
+                psel = atomsel("(%s) and not same fragment as resname %s"
+                               % (self.config["system"]["refsel"],
+                                  " ".join(self.ligands)),
                                molid=m, frame=frame)
                 tomove = psel.fit(refsel)
                 atomsel("all", molid=m, frame=frame).move(tomove)
@@ -193,8 +183,11 @@ class Sampler(object):
                     a = molecule.load("psf",
                                       os.path.abspath(self.config["system"]["topologypsf"]))
                 g = glob(os.path.join(self.dir, "production", str(gen),
-                                      str(rep), "Reimaged_Eq1*.nc"))
-                assert(len(g)==1 or len(g)==0)
+                                      str(rep), "Reimaged_strip_Eq1*.nc"))
+                assert len(g) == 1 or len(g) == 0
+                if len(g) == 0:
+                    g = glob(os.path.join(self.dir, "production", str(gen),
+                                          str(rep), "Reimaged_Eq1*.nc"))
                 if len(g) == 0:
                     g = glob(os.path.join(self.dir, "production", str(gen),
                                           str(rep), "Reimaged_Eq6*.nc"))
@@ -222,13 +215,16 @@ class Sampler(object):
         Returns:
             (list of int): Residue numbers of each ligands, in order
         """
-        ligids = sorted(set(atomsel("resname %s" % " ".join(self.ligands)),
-                                    molid=molid).get("residue"))
+        ligids = sorted(set(atomsel("resname %s" % " ".join(self.ligands),
+                            molid=molid).get("residue")))
         return ligids
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 class ClusterSampler(object):
+    """
+    Loads and visualizes a representative frame and density for each cluster
+    """
 
     def __init__(self, configfile, generation):
         """
@@ -250,7 +246,7 @@ class ClusterSampler(object):
         self.num_ligands = int(self.config["system"]["num_ligands"])
         self.generation = generation
 
-        assert(generation <= int(self.config["production"]["generation"]))
+        assert generation <= int(self.config["production"]["generation"])
         self.nreps = int(self.config["model"]["samplers"])
         self.dir = self.config["system"]["rootdir"]
         if gethostname() == "platyrhynchos":
@@ -277,7 +273,7 @@ class ClusterSampler(object):
         substr = os.path.join(self.dir, "production", str(self.generation))
         self.mmsm = load(os.path.join(substr, "mmsm_G%d.pkl" % self.generation))
         self.msm = load(os.path.join(substr, "msm_G%d.pkl" % self.generation))
-        self.clust = load(os.path.join(substr,"testing.cluster.pkl"))
+        self.clust = load(os.path.join(substr, "testing.cluster.pkl"))
         self.scores = []
         if os.path.isfile(os.path.join(substr, "mmsm_scores.pkl")):
             print("Loading scores")
@@ -330,48 +326,59 @@ class ClusterSampler(object):
 
         rmsds = {int(x.split()[0].strip()): float(x.split()[1].strip()) for x in lines}
 
-        for molname in sorted(glob(os.path.join(self.dir, "clusters", str(self.generation), "*.mae")),
+        for molname in sorted(glob(os.path.join(self.dir, "clusters",
+                                                str(self.generation), "*.mae")),
                               key=lambda x: int(x.split('/')[-1].replace(".mae", ""))):
-            nam = molname.split('/')[-1].replace(".mae","")
+            nam = molname.split('/')[-1].replace(".mae", "")
             a = molecule.load("mae", molname)
             molecule.rename(a, "%d_%s" % (self.generation, nam))
 
+            # Load the density map
+            molecule.read(a, "dx", molname.replace("mae", "dx"), waitfor=-1)
+            #evaltcl("mol addrep %d Isosurface 0.1 0 1 1 1" % a)
+            molrep.addrep(a, style="Isosurface 0.05 0 0 1 1",
+                          color="ColorID 2")
+            molrep.set_scaleminmax(a, molrep.num(a)-1, 0, 2.)
+
             # Get per-atom rmsd
             if self.rmsds is None:
-                nheavy = len(atomsel("noh and same fragment as "
-                                     "(resname %s)" % " ".join(self.ligands),
-                                     a))
                 self.rmsds = rmsds
 
             atomsel("all", molid=a).set("user", self.rmsds[int(nam)])
 
             molrep.delrep(a, 0)
             molrep.addrep(a, style="NewRibbons", material="Opaque",
-                          selection="protein and not same fragment as "
-                                    "(resname %s)" % " ".join(self.ligands),
-                                    color="User")
+                          color="User", selection="protein and not "
+                          "same fragment as (resname %s)"
+                          % " ".join(self.ligands))
             if len(self.molids) > 1:
                 molrep.set_visible(a, molrep.num(a)-1, False)
-            molrep.set_scaleminmax(a, molrep.num(a)-1, 0, 10.)
+            molrep.set_scaleminmax(a, molrep.num(a)-1, 0, 2.)
             molrep.addrep(a, style="Licorice", material="Opaque",
                           selection="noh and same fragment as "
                                     "(resname %s)" % " ".join(self.ligands),
                                     color="User")
-            molrep.set_scaleminmax(a, molrep.num(a)-1, 0, 10.)
+            molrep.set_scaleminmax(a, molrep.num(a)-1, 0, 2.)
             self.molids.append(a)
 
         # Align
-        refsel = atomsel("protein and not same fragment as "
-                         "(resname %s)" % " ".join(self.ligands),
-                         molid=self.molids[0], frame=0)
-
-        for m in self.molids:
-            for frame in range(molecule.numframes(m)):
-                psel = atomsel("protein and not same fragment as "
-                               "(resname %s)" % " ".join(self.ligands),
-                               molid=m, frame=frame)
-                tomove = psel.fit(refsel)
-                atomsel("all", molid=m, frame=frame).move(tomove)
+# These files should all already be aligned to the reference structure when
+# they are created.
+#        refmol = molecule.load("psf", self.config["system"]["reference"],
+#                               "pdb", self.config["system"]["reference"].replace("psf","pdb"))
+#        refsel = atomsel("(%s) and not same fragment as resname %s"
+#                         % (self.config["system"]["refsel"],
+#                            " ".join(self.ligands)),
+#                         molid=refmol)
+#
+#        for m in self.molids:
+#            for frame in range(molecule.numframes(m)):
+#                psel = atomsel("(%s) and not same fragment as resname %s"
+#                               % (self.config["system"]["refsel"],
+#                                  " ".join(self.ligands)),
+#                               molid=m, frame=frame)
+#                tomove = psel.fit(refsel)
+#                atomsel("all", molid=m, frame=frame).move(tomove)
 
     #==========================================================================
 
