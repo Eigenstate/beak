@@ -257,7 +257,7 @@ class ClusterDensity(object):
     """
     #==========================================================================
 
-    def __init__(self, prodfiles, clusters, config):
+    def __init__(self, prodfiles, clusters, config, **kwargs):
         """
         Args:
             trajfiles (list of str): Trajectory files
@@ -274,6 +274,9 @@ class ClusterDensity(object):
         self.ranges = [[-r/2., r/2.] for r in self.dimensions]
         self.grids = {}
         self.counts = {}
+
+        # Handle optional arguments
+        self.maxframe = kwargs.get("maxframe", -1)
 
         # Load reference structure
         self.refid = molecule.load("psf", config["system"]["reference"],
@@ -314,7 +317,7 @@ class ClusterDensity(object):
         topofile = utils.get_topology(trajfile, self.rootdir)
         molid = molecule.load("psf" if "psf" in topofile else "parm7", topofile)
         molecule.read(molid, "dcd" if ".dcd" in trajfile else "netcdf",
-                      trajfile, waitfor=-1)
+                      trajfile, waitfor=-1, end=self.maxframe)
 
         # Get residue number for each ligand
         ligids = sorted(set(atomsel("resname %s" % " ".join(self.lignames),
