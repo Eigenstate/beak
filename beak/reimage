@@ -3,6 +3,8 @@
 Does reimaging as a standalone python script
 """
 import argparse
+import subprocess
+import os
 from beak.reimagers import *
 
 if __name__ == "__main__":
@@ -29,10 +31,13 @@ if __name__ == "__main__":
 
     opts = parser.parse_args(sys.argv[1:])
 
-    reimage(psf=opts.get("psf"),
-            revision=opts.get("revision"),
-            skip=opts.get("skip"),
-            alleq=opts.get("alleq"),
-            align=opts.get("align"),
-            stripmask=opts.get("strip"))
+    os.environ["PATH"] = "%s:%s" % (os.path.join(os.environ["PI_HOME"], "software",
+                                                 "amber_dev", "bin"), os.environ["PATH"])
+    os.environ["AMBERHOME"] = os.path.join(os.environ["PI_HOME"], "software", "amber_dev")
+    reimage(psf=opts.psf,
+            revision=opts.revision,
+            skip=opts.skip,
+            alleq=opts.alleq,
+            align=opts.align,
+            stripmask=opts.strip)
 
