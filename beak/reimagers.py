@@ -171,7 +171,7 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align,
             rems = glob(os.path.join("production", revision, replicate,
                                      "Reimaged_Eq6_to_*_skip_%s.nc" % skip))
         for r in rems:
-            num = int(r.split('_')[3])
+            num = int(r.split('_')[-3])
             if num <= lastnum:
                 print("Removing: %s" % r)
                 os.remove(r)
