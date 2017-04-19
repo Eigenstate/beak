@@ -154,9 +154,11 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align,
     # If output file already exists, continue
     if alleq:
         ofile = os.path.join(proddir, "Reimaged_Eq1_to_%d_skip_%s.nc" % (lastnum, skip))
+        ofile2 = os.path.join(proddir, "Reimaged_strip_Eq1_to_%d_skip_%s.nc" % (lastnum, skip))
     else:
         ofile = os.path.join(proddir, "Reimaged_Eq6_to_%d_skip_%s.nc" % (lastnum, skip))
-    if os.path.isfile(ofile):
+        ofile2 = os.path.join(proddir, "Reimaged_strip_Eq6_to_%d_skip_%s.nc" % (lastnum, skip))
+    if os.path.isfile(ofile) and os.path.isfile(ofile2):
         print("EXISTS reimaged file for Rev %s Rep %s" % (revision, replicate))
         return
     else:
