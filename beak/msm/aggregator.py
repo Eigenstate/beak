@@ -118,6 +118,8 @@ class ClusterCenter(object):
         print("  Trajectory: %s\nFrame: %d\tLigand: %d"
               % (self.reptraj, self.repframe, self.repligid))
 
+        # This is deprecated so I'm not bothering translating it to utils
+        # function call here
         if os.path.isfile(topofile):
             topo = topofile
         else:
@@ -163,6 +165,7 @@ def get_cluster_centers(prodfiles, clusts, clusters, ligands, topology):
         else:
             topofile = utils.get_topology(trajfile, topology)
 
+        # Deprecated but ok
         molid = molecule.load("psf" if "psf" in topofile else "parm7", topofile)
         molecule.read(molid, "dcd" if ".dcd" in trajfile else "netcdf",
                       trajfile, waitfor=-1)
@@ -329,13 +332,12 @@ class ClusterDensity(object):
         trajidx = self.prodfiles.index(trajfile)
         maxframe = -1 if self.maxframes is None else self.maxframes[trajidx]-1
 
-        if not self.topology:
-            topofile = utils.get_topology(trajfile, self.rootdir)
-        else:
-            topofile = self.topology
-        molid = molecule.load("psf" if "psf" in topofile else "parm7", topofile)
-        molecule.read(molid, "dcd" if ".dcd" in trajfile else "netcdf",
-                      trajfile, waitfor=-1, end=maxframe)
+        molid = utils.load_trajectory(trajfile, self.rootdir,
+                                      aselref=self.aselref,
+                                      psfref=self.psfsel,
+                                      prmref=self.refsel,
+                                      frame=(0, maxframe),
+                                      topology=self.topology)
 
         # Get residue number for each ligand
         ligids = sorted(set(atomsel("resname %s" % " ".join(self.lignames),
@@ -346,13 +348,6 @@ class ClusterDensity(object):
 
         # Go through each frame just once
         for frame in range(molecule.numframes(molid)):
-
-            # Align frame to reference structure
-            if "psf" in topofile:
-                psel = atomsel(self.psfsel, molid=molid, frame=frame)
-            else:
-                psel = atomsel(self.refsel, molid=molid, frame=frame)
-            atomsel("all", molid=molid, frame=frame).move(psel.fit(self.aselref))
 
             # Update density for each ligand
             for i in range(len(ligids)):

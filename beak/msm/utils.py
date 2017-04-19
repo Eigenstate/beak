@@ -93,6 +93,65 @@ def get_topology(filename, rootdir):
 
 #==============================================================================
 
+def get_trajectory_format(filename):
+    """
+    Gets the filetype for VMD loading for the given filename
+
+    Returns:
+        (str): VMD format string for loading the given file
+    """
+    if ".dcd" in filename: return "dcd"
+    elif ".nc" in filename: return "netcdf"
+    else: raise ValueError("No known format for file %s" % filename)
+
+#==============================================================================
+
+def load_trajectory(filename, rootdir, aselref=None, psfref=None,
+                    prmref=None, frame=None, topology=None):
+    """
+    Loads a trajectory with the correct topology and format based on
+    the filename. Also aligns to the reference structure using the
+    appropriate reference selection.
+
+    Args:
+        filename (str): The reimaged trajectory file to load
+        rootdir (str): Root directory of the sampling run
+        aselref (atomsel): Reference atom selection to align to
+        psfref (str): Atom selection strings for PSFs / normal resids
+        prmref (str): Atom selection strings for prmtops / altered resids
+        frame (int): Single frame to load, or None for all frames, or (beg,end)
+        topology (str): Manual topology choice to use, or None for autodetect
+
+    Returns:
+        (int): VMD molecule ID of loaded and aligned trajectory
+    """
+    # Load the topology
+    if topology is None:
+        topology = get_topology(filename, rootdir)
+    mid = molecule.load("psf" if "psf" in topology else "parm7", topology)
+
+    # Load the trajectory in
+    fmt = get_trajectory_format(filename)
+    if frame is None:
+        molecule.read(mid, fmt, filename, waitfor=-1)
+    elif isinstance(frame, int):
+        molecule.read(mid, fmt, filename, beg=frame, end=frame, waitfor=-1)
+    elif len(frame) == 2:
+        molecule.read(mid, fmt, filename, beg=frame[0], end=frame[1],
+                      waitfor=-1)
+    else:
+        raise ValueError("I don't understand loading frames: %s" % frame)
+
+    # Align, if desired
+    if aselref is None: return mid
+    framsel = atomsel(psfref if "psf" in topology else prmref, molid=mid)
+    for frame in range(molecule.numframes(mid)):
+        framsel.update()
+        atomsel("all", molid=mid, frame=frame).move(framsel.fit(aselref))
+    return mid
+
+#==============================================================================
+
 def align(molid, refid, refsel):
     """
     Aligns all frames found in the trajectory specified by molid to
