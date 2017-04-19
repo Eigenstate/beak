@@ -263,6 +263,7 @@ class ClusterDensity(object):
             trajfiles (list of str): Trajectory files
             clusters (list of ndarray): Cluster data
             config (ConfigParser): Config file with other system information
+            maxframes (list of int): Number of frames to read from each file
         """
         self.prodfiles = prodfiles
         self.clusters = clusters
@@ -276,13 +277,13 @@ class ClusterDensity(object):
         self.counts = {}
 
         # Handle optional arguments
-        self.maxframe = kwargs.get("maxframe", -1)
+        self.maxframes = kwargs.get("maxframes", None)
         self.topology = kwargs.get("topology", None)
 
         # Load reference structure
         refname = config["system"]["reference"]
         if "prmtop" in refname:
-            self.refid = molecule.load("parm7", refname
+            self.refid = molecule.load("parm7", refname,
                                        "crdbox", refname.replace("prmtop", "inpcrd"))
         elif "psf" in refname:
             self.refid = molecule.load("psf", refname,
@@ -293,7 +294,7 @@ class ClusterDensity(object):
         self.refsel = config["system"]["refsel"]
         self.aselref = atomsel(self.refsel, molid=self.refid)
         # For backwards / psf compatibility
-        self.psfsel = self.config["system"]["canonical_sel"]
+        self.psfsel = config["system"]["canonical_sel"]
 
     #==========================================================================
 
@@ -325,13 +326,16 @@ class ClusterDensity(object):
         """
         # Load the trajectory
         assert trajfile in self.prodfiles
+        trajidx = self.prodfiles.index(trajfile)
+        maxframe = -1 if self.maxframes is None else self.maxframes[trajidx]-1
+
         if not self.topology:
             topofile = utils.get_topology(trajfile, self.rootdir)
         else:
             topofile = self.topology
         molid = molecule.load("psf" if "psf" in topofile else "parm7", topofile)
         molecule.read(molid, "dcd" if ".dcd" in trajfile else "netcdf",
-                      trajfile, waitfor=-1, end=self.maxframe-1)
+                      trajfile, waitfor=-1, end=maxframe)
 
         # Get residue number for each ligand
         ligids = sorted(set(atomsel("resname %s" % " ".join(self.lignames),
@@ -355,7 +359,7 @@ class ClusterDensity(object):
                 coords = np.compress(masks[i],
                                      vmdnumpy.timestep(molid, frame),
                                      axis=0)
-                cidx = self.prodfiles.index(trajfile)*len(ligids) + i
+                cidx = trajidx*len(ligids) + i
                 self._update_grid(self.clusters[cidx][frame], coords)
 
         molecule.delete(molid)
