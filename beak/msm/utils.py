@@ -128,7 +128,9 @@ def load_trajectory(filename, rootdir, **kwargs):
         (int): VMD molecule ID of loaded and aligned trajectory
     """
     # Load the topology
-    topology = kwargs.get("topology", get_topology(filename, rootdir))
+    topology = kwargs.get("topology", None)
+    if topology is None:
+        topology = get_topology(filename, rootdir)
     mid = molecule.load("psf" if "psf" in topology else "parm7", topology)
 
     aselref = kwargs.get("aselref", None)

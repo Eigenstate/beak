@@ -4,6 +4,8 @@ change what is visualized
 """
 import math
 import numpy as np
+import os
+from glob import glob
 from msmbuilder.tpt import hub_scores, top_path, net_fluxes
 
 try:
@@ -659,5 +661,24 @@ def smooth_savitsky_golay(molid, window=5, polyorder=3):
     for t in range(molecule.numframes(molid)):
         conv = smoothed[t].reshape((molecule.numatoms(molid), 3))
         np.copyto(vmdnumpy.timestep(molid, t), conv)
+
+#==============================================================================
+
+def load_traj(gen, rep):
+    """
+    Loads the specified trajectory
+    """
+    gen = str(gen)
+    rep = str(rep)
+    rootdir = os.getcwd()
+    topo = os.path.join(rootdir, "systems", gen, "%s_stripped.prmtop" % rep)
+    if not os.path.isfile(topo):
+        topo = os.path.join(rootdir, "systems", gen, "%s.psf" % rep)
+
+    trajs = glob(os.path.join(rootdir, "production", gen, rep, "Reimaged_*.nc"))
+    if not len(trajs): return
+
+    mid = molecule.load("psf" if "psf" in topo else "parm7", topo)
+    molecule.read(mid, "netcdf", trajs[0], skip=10, waitfor=-1)
 
 #==============================================================================
