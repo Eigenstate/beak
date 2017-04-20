@@ -3,17 +3,17 @@ Contains useful utilities for running MSMs
 """
 from __future__ import print_function
 import os
-import h5py
-import numpy as np
 from glob import glob
-from Dabble import VmdSilencer
+import h5py
+#pylint: disable=import-error, invalid-name, unused-import
 try:
-    from vmd import atomsel, molecule, vmdnumpy
+    from vmd import atomsel, molecule
     atomsel = atomsel.atomsel
-except:
+except ImportError:
     import vmd
-    import molecule, vmdnumpy
+    import molecule
     from atomsel import atomsel
+#pylint: enable=import-error, invalid-name, unused-import
 
 #==============================================================================
 
@@ -100,14 +100,16 @@ def get_trajectory_format(filename):
     Returns:
         (str): VMD format string for loading the given file
     """
-    if ".dcd" in filename: return "dcd"
-    elif ".nc" in filename: return "netcdf"
-    else: raise ValueError("No known format for file %s" % filename)
+    if ".dcd" in filename:
+        return "dcd"
+    elif ".nc" in filename:
+        return "netcdf"
+    else:
+        raise ValueError("No known format for file %s" % filename)
 
 #==============================================================================
 
-def load_trajectory(filename, rootdir, aselref=None, psfref=None,
-                    prmref=None, frame=None, topology=None):
+def load_trajectory(filename, rootdir, **kwargs):
     """
     Loads a trajectory with the correct topology and format based on
     the filename. Also aligns to the reference structure using the
@@ -126,9 +128,13 @@ def load_trajectory(filename, rootdir, aselref=None, psfref=None,
         (int): VMD molecule ID of loaded and aligned trajectory
     """
     # Load the topology
-    if topology is None:
-        topology = get_topology(filename, rootdir)
+    topology = kwargs.get("topology", get_topology(filename, rootdir))
     mid = molecule.load("psf" if "psf" in topology else "parm7", topology)
+
+    aselref = kwargs.get("aselref", None)
+    psfref = kwargs.get("psfref", None)
+    prmref = kwargs.get("prmref", None)
+    frame = kwargs.get("frame", None)
 
     # Load the trajectory in
     fmt = get_trajectory_format(filename)
@@ -143,7 +149,8 @@ def load_trajectory(filename, rootdir, aselref=None, psfref=None,
         raise ValueError("I don't understand loading frames: %s" % frame)
 
     # Align, if desired
-    if aselref is None: return mid
+    if aselref is None:
+        return mid
     framsel = atomsel(psfref if "psf" in topology else prmref, molid=mid)
     for frame in range(molecule.numframes(mid)):
         framsel.update()
@@ -167,6 +174,38 @@ def align(molid, refid, refsel):
         psel = atomsel(refsel, molid=molid, frame=frame)
         tomove = psel.fit(ref)
         atomsel("all", molid=molid, frame=frame).move(tomove)
+
+#==============================================================================
+
+def get_prodfiles(generation, rootdir, new=False):
+    """
+    Gets the sorted list of all production files for a given adaptive
+    sampling run. Supports legacy non-stripped and non-equilibrated
+    reimaged trajectories.
+
+    Args:
+        generation (int): Latest generation to load
+        rootdir (str): Root directory for sampling run
+        new (bool): Only return production files from this generation, if True
+
+    Returns:
+        (list of str): Production files, inorder
+    """
+    prodfiles = []
+    for gen in range(generation if new else 1, generation+1):
+        rpath = os.path.join(rootdir, "production", str(gen), "*")
+        pfs = glob(os.path.join(rpath, "Reimaged_strip_Eq1*.nc"))
+
+        # Fallpack to previous non-stripped reimaging
+        # Fallback again to even older non-equilibration reimaging
+        if not len(pfs):
+            pfs = glob(os.path.join(rpath, "Reimaged_Eq1*.nc"))
+        if not len(pfs):
+            pfs = glob(os.path.join(rpath, "Reimaged_Eq6*.nc"))
+
+        prodfiles.extend(sorted(pfs, key=lambda x: int(x.split('/')[-2])))
+
+    return prodfiles
 
 #==============================================================================
 
