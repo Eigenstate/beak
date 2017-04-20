@@ -346,6 +346,10 @@ class ClusterDensity(object):
                                      "noh and same fragment as residue %d" % l)
                  for l in ligids]
 
+        # DEBUG print out nframes
+        print("Cluster assignments: %d\t Number of frames: %d"
+              % (len(self.clusters[cidx]), molecule.numframes(molid)))
+        sys.stdout.flush()
         # Go through each frame just once
         for frame in range(molecule.numframes(molid)):
 
