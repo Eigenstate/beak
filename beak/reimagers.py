@@ -172,9 +172,9 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align,
         else:
             rems = glob(os.path.join("production", revision, replicate,
                                      "Reimaged_Eq6_to_*_skip_%s.nc" % skip))
+        # Delete reimaged files that are older than last modified production trajectory
         for r in rems:
-            num = int(r.split('_')[-3])
-            if num <= lastnum:
+            if os.path.getmtime(r) > os.path.getmtime(prods[-1]):
                 print("Removing: %s" % r)
                 os.remove(r)
 
