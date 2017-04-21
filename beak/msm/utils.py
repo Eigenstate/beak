@@ -123,6 +123,7 @@ def load_trajectory(filename, rootdir, **kwargs):
         prmref (str): Atom selection strings for prmtops / altered resids
         frame (int): Single frame to load, or None for all frames, or (beg,end)
         topology (str): Manual topology choice to use, or None for autodetect
+        molid (int): Molecule ID to load trajectory into, or None for new molid
 
     Returns:
         (int): VMD molecule ID of loaded and aligned trajectory
@@ -131,7 +132,11 @@ def load_trajectory(filename, rootdir, **kwargs):
     topology = kwargs.get("topology", None)
     if topology is None:
         topology = get_topology(filename, rootdir)
-    mid = molecule.load("psf" if "psf" in topology else "parm7", topology)
+
+    if kwargs.get("molid") is None:
+        mid = molecule.load("psf" if "psf" in topology else "parm7", topology)
+    else:
+        mid = int(kwargs.get("molid"))
 
     aselref = kwargs.get("aselref", None)
     psfref = kwargs.get("psfref", None)
