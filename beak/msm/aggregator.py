@@ -349,14 +349,13 @@ class ClusterDensity(object):
         # DEBUG print out nframes
         if len(self.clusters[trajidx*len(ligids)]) != molecule.numframes(molid):
             print("Mismatch trajectory: %s" % trajfile)
-            print("%d frames but %d clusters"
+            print("%d clusters but %d frames"
                   % (len(self.clusters[trajidx*len(ligids)]),
                      molecule.numframes(molid)))
+            sys.stdout.flush()
 
-        sys.stdout.flush()
         # Go through each frame just once
-        #for frame in range(molecule.numframes(molid)):
-        for frame in range(len(self.clusters[trajidx*len(ligids)])):
+        for frame in range(molecule.numframes(molid)):
 
         # Update density for each ligand
             for i in range(len(ligids)):
