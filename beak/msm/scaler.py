@@ -27,6 +27,7 @@ def get_scaler(molid, steepness=0.5):
             raise ValueError("Array size mismatch in scaling function")
 
         scale_factor = -0.5*np.tanh(steepness*ligand_com[:,2]-min_z)+0.5
+        scale_factor = np.reshape(scale_factor, (len(scale_factor),1))
         return raw_dists*(1.-scale_factor) + zdim*scale_factor
 
     return scaler

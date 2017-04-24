@@ -55,7 +55,8 @@ def check_empty(filename):
     Returns:
         (bool): True if there were no frames
     """
-
+    if not os.path.isfile(filename):
+        return False
     checker = subprocess.Popen(["ncdump", "-h", filename],
                                stdout=subprocess.PIPE)
     output = checker.stdout.read()
@@ -176,6 +177,7 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align,
         for r in rems:
             if os.path.getmtime(r) > os.path.getmtime(prods[-1]):
                 print("Removing: %s" % r)
+                sys.std.out.flush()
                 os.remove(r)
 
     # Now write cpptraj input
@@ -197,7 +199,11 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align,
             tempfile.write("trajin %s 1 last %d\n" % (e, int(skip)*8))
 
     # Last equilibration in
-    tempfile.write("trajin %s 1 last %d\n" % (os.path.join(proddir, "Eq_6.nc"), int(skip)*8))
+    if not check_empty(os.path.join(proddir, "Eq_6.nc")):
+        tempfile.write("trajin %s 1 last %d\n" % (os.path.join(proddir, "Eq_6.nc"), int(skip)*8))
+    else:
+        prods = [] # Don't write out production files if no Eq_6 present
+        ofile = ofile.replace("_to_%d_skip" % lastnum, "_to_Eq5_skip")
 
     # Read in production data, reimaged
     for p in prods:
