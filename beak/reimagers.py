@@ -29,7 +29,7 @@ def group_output(inputset):
     # Find ranges using itertools
     def ranges(i):
         for _, b in itertools.groupby(enumerate(i),
-                                      lambda (x, y): y-x):
+                                      lambda x_y: x_y[1]-x_y[0]):
             b = list(b)
             yield b[0][1], b[-1][1]
     l = list(ranges(inputset))

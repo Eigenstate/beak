@@ -20,9 +20,12 @@ Boston, MA 02111-1307, USA.
 """
 
 from __future__ import print_function
-from beak.rendertools.quaternion import Quaternion
+from .quaternion import Quaternion
 from numpy import *
-import vmd, trans, display
+try:
+    import vmd, trans, display
+except ModuleNotFoundError:
+    from vmd import trans, display
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 

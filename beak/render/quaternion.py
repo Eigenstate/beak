@@ -10,8 +10,8 @@ the authors is made.
 """
 
 from numpy import arccos
-from utility import *
-import transform as T
+from .utility import *
+from . import transform as T
 import copy
 
 # Copyright (C) 1999-2002, by Peter I. Corke
@@ -119,7 +119,7 @@ Constructor for quaternion objects:
             self.v = mat(args[1:4])
 
         else:
-                print "error"
+                print("error")
                 return None
 
     def __repr__(self):

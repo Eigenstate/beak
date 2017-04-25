@@ -10,9 +10,9 @@ the authors is made.
 """
 
 from numpy import *
-from utility import *
+from .utility import *
 from numpy.linalg import norm
-import quaternion as Q
+from . import quaternion as Q
 
 def rotx(theta):
     """

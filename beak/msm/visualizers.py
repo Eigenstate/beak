@@ -310,7 +310,7 @@ def display_msm(samp, msm=None, clust=None, states=None):
         handles["%s-out" % c] = vmdnumpy.timestep(m,f)[atoms[1]]
 
     # Normalize to show width
-    print rms
+    print(rms)
     rms = [r/sum(rms) * len(states)/5. for r in rms]
     for i, m in enumerate(reps):
         molrep.modrep(m[0], m[1], "Licorice %f 12.0 12.0" % max(0.1,rms[i]))
@@ -652,7 +652,7 @@ def smooth_savitsky_golay(molid, window=5, polyorder=3):
     from scipy.signal import savgol_filter
 
     smoother = np.empty((molecule.numframes(molid), molecule.numatoms(molid)*3))
-    print smoother.shape
+    print(smoother.shape)
     for t in range(molecule.numframes(molid)):
         smoother[t] = vmdnumpy.timestep(molid, t).flatten()
 

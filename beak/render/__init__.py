@@ -3,6 +3,6 @@
 __version__ = '0.0.0a1'
 __author__  = 'Robin Betz'
 
-from cameramovement import CameraMovement
-from quaternion import Quaternion
+from .cameramovement import CameraMovement
+from .quaternion import Quaternion
 

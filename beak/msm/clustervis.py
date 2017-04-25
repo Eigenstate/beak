@@ -12,7 +12,7 @@ from msmbuilder.msm import MarkovStateModel
 from msmbuilder.tpt import *
 from msmbuilder.utils import load
 try:
-    from vmd import molecule, molrep, vmdnumpy
+    from vmd import molecule, molrep, vmdnumpy, atomsel
     atomsel = atomsel.atomsel
 except:
     import vmd

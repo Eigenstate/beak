@@ -21,15 +21,18 @@ Boston, MA 02111-1307, USA.
 
 from __future__ import print_function
 from . import Analyzer
-from beak.TrajectorySet import TrajectorySet
 
 import numpy as np
 from matplotlib import pyplot as plt
 import math
 
-import vmd
-from atomsel import atomsel
-import Molecule
+try:
+    import vmd
+    from atomsel import atomsel
+    import Molecule
+except:
+    from vmd import atomsel, molecule
+    atomsel = atomsel.atomsel
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 

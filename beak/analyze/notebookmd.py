@@ -1,10 +1,15 @@
 # These are useful python functions that I commonly use in notebooks
 from glob import glob
-import vmd, molecule
+try:
+    import vmd, molecule
+    import vmdnumpy
+    from atomsel import atomsel
+except:
+    from vmd import atomsel, molecule, vmdnumpy
+    atomsel = atomsel.atomsel
+
 import numpy
-import vmdnumpy
 import pandas as pd
-from atomsel import atomsel
 
 #===============================================================================
 
@@ -21,7 +26,7 @@ def align_on_tm(molid, ref):
 
     refsel = atomsel("protein backbone and mass > 0", molid=ref) # Align on TM helices
     sel = atomsel("protein backbone and mass > 0", molid=molid)
-    
+
     for i in range(molecule.numframes(molid)):
         molecule.set_frame(molid, i)
         sel.update()
@@ -42,13 +47,13 @@ def load_condition(psf, ref, skip, align):
         ref (int): Reference molecule ID for alignment
         skip (int): Number of frames to skip
         align (bool): Whether to align on the TM helices
-    
+
     Returns:
         list of tuple: (molid, replicate) of all replicates loaded, with
                    their corresponding replicate number, so you don't have
                    to match it up with paths later.
     """
-        
+
     revision = (psf.split('/')[-1]).split("_")[0].replace("inp","")
     prods = glob("/".join(psf.split("/")[:-1])+"/production/"+revision+
                  "/*/Reimaged_Eq6*_skip_1.nc")
@@ -107,7 +112,7 @@ def sliding_mean(data_array, window=5):
 def calc_average_structure(molids, psf, minframe=0):
     """
     Calculates the average structure for a given trajectory and psf
-    
+
     Args:
         molids (list of int): Trajectory IDs to average
         psf (str): Path to psf file describing this topology
@@ -137,7 +142,7 @@ def calc_average_structure(molids, psf, minframe=0):
 
 def calc_rmsf_to_average(molid, avg, selstr, minframe=0):
     """
-    Calculates the RMSF of an atom selection 
+    Calculates the RMSF of an atom selection
 
     Args:
         molid (int): VMD molecule ID to calculate
@@ -147,19 +152,19 @@ def calc_rmsf_to_average(molid, avg, selstr, minframe=0):
     """
     mask = vmdnumpy.atomselect(avg, 0, selstr)
     ref = numpy.compress(mask, vmdnumpy.timestep(avg,0), axis=0)
-    
+
     if molecule.numframes(molid) <= minframe:
         print("Only %d frames in %d" % (molecule.numframes(molid), molid))
         return None
     rmsf = numpy.zeros(len(ref))
-    
+
     for f in range(minframe, molecule.numframes(molid)):
         frame = numpy.compress(mask, vmdnumpy.timestep(molid, f), axis=0)
         rmsf += numpy.sqrt(numpy.sum((frame-ref)**2, axis=1))
-        
+
     rmsf /= (molecule.numframes(molid)-minframe)
     rmsf = numpy.sqrt(rmsf)
-   
-    return rmsf 
+
+    return rmsf
 
 #===============================================================================
