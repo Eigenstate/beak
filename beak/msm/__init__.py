@@ -4,7 +4,6 @@ __version__ = '0.0.0a1'
 __author__  = 'Robin Betz'
 
 import clustervis
-import msmvis
 import visualizers
 
 from aggregator import ClusterCenter, ClusterDensity
