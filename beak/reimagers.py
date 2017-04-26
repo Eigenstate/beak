@@ -177,7 +177,7 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align,
         for r in rems:
             if os.path.getmtime(r) > os.path.getmtime(prods[-1]):
                 print("Removing: %s" % r)
-                sys.std.out.flush()
+                sys.stdout.flush()
                 os.remove(r)
 
     # Now write cpptraj input
