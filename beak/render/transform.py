@@ -12,12 +12,12 @@ the authors is made.
 from numpy import *
 from .utility import *
 from numpy.linalg import norm
-from . import quaternion as Q
+import quaternion
 
 def rotx(theta):
     """
     Rotation about X-axis
-    
+
     @type theta: number
     @param theta: the rotation angle
     @rtype: 3x3 orthonormal matrix
@@ -25,7 +25,7 @@ def rotx(theta):
 
     @see: L{roty}, L{rotz}, L{rotvec}
     """
-    
+
     ct = cos(theta)
     st = sin(theta)
     return mat([[1,  0,    0],
@@ -35,7 +35,7 @@ def rotx(theta):
 def roty(theta):
     """
     Rotation about Y-axis
-    
+
     @type theta: number
     @param theta: the rotation angle
     @rtype: 3x3 orthonormal matrix
@@ -43,7 +43,7 @@ def roty(theta):
 
     @see: L{rotx}, L{rotz}, L{rotvec}
     """
-    
+
     ct = cos(theta)
     st = sin(theta)
 
@@ -54,7 +54,7 @@ def roty(theta):
 def rotz(theta):
     """
     Rotation about Z-axis
-    
+
     @type theta: number
     @param theta: the rotation angle
     @rtype: 3x3 orthonormal matrix
@@ -62,7 +62,7 @@ def rotz(theta):
 
     @see: L{rotx}, L{roty}, L{rotvec}
     """
-    
+
     ct = cos(theta)
     st = sin(theta)
 
@@ -73,7 +73,7 @@ def rotz(theta):
 def trotx(theta):
     """
     Rotation about X-axis
-    
+
     @type theta: number
     @param theta: the rotation angle
     @rtype: 4x4 homogeneous matrix
@@ -86,7 +86,7 @@ def trotx(theta):
 def troty(theta):
     """
     Rotation about Y-axis
-    
+
     @type theta: number
     @param theta: the rotation angle
     @rtype: 4x4 homogeneous matrix
@@ -99,7 +99,7 @@ def troty(theta):
 def trotz(theta):
     """
     Rotation about Z-axis
-    
+
     @type theta: number
     @param theta: the rotation angle
     @rtype: 4x4 homogeneous matrix
@@ -115,18 +115,18 @@ def trotz(theta):
 def tr2eul(m):
     """
     Extract Euler angles.
-    Returns a vector of Euler angles corresponding to the rotational part of 
+    Returns a vector of Euler angles corresponding to the rotational part of
     the homogeneous transform.  The 3 angles correspond to rotations about
     the Z, Y and Z axes respectively.
-    
+
     @type m: 3x3 or 4x4 matrix
     @param m: the rotation matrix
     @rtype: 1x3 matrix
     @return: Euler angles [S{theta} S{phi} S{psi}]
-    
+
     @see:  L{eul2tr}, L{tr2rpy}
     """
-    
+
     try:
         m = mat(m)
         if ishomog(m):
@@ -146,18 +146,18 @@ def tr2eul(m):
                 euler[0,1] = arctan2(cp*m[0,2] + sp*m[1,2], m[2,2])
                 euler[0,2] = arctan2(-sp*m[0,0] + cp*m[1,0], -sp*m[0,1] + cp*m[1,1])
                 return euler
-            
+
     except ValueError:
         euler = []
         for i in range(0,len(m)):
             euler.append(tr2eul(m[i]))
         return euler
-        
+
 
 def eul2r(phi, theta=None, psi=None):
     """
     Rotation from Euler angles.
-    
+
     Two call forms:
         - R = eul2r(S{theta}, S{phi}, S{psi})
         - R = eul2r([S{theta}, S{phi}, S{psi}])
@@ -212,7 +212,7 @@ def eul2r(phi, theta=None, psi=None):
 def eul2tr(phi,theta=None,psi=None):
     """
     Rotation from Euler angles.
-    
+
     Two call forms:
         - R = eul2tr(S{theta}, S{phi}, S{psi})
         - R = eul2tr([S{theta}, S{phi}, S{psi}])
@@ -239,15 +239,15 @@ def eul2tr(phi,theta=None,psi=None):
 def tr2rpy(m):
     """
     Extract RPY angles.
-    Returns a vector of RPY angles corresponding to the rotational part of 
+    Returns a vector of RPY angles corresponding to the rotational part of
     the homogeneous transform.  The 3 angles correspond to rotations about
     the Z, Y and X axes respectively.
-    
+
     @type m: 3x3 or 4x4 matrix
     @param m: the rotation matrix
     @rtype: 1x3 matrix
     @return: RPY angles [S{theta} S{phi} S{psi}]
-    
+
     @see:  L{rpy2tr}, L{tr2eul}
     """
     try:
@@ -267,17 +267,17 @@ def tr2rpy(m):
                 rpy[0,1] = arctan2(-m[2,0], cp*m[0,0] + sp*m[1,0])
                 rpy[0,2] = arctan2(sp*m[0,2] - cp*m[1,2], cp*m[1,1] - sp*m[0,1])
                 return rpy
-            
+
     except ValueError:
         rpy = []
         for i in range(0,len(m)):
             rpy.append(tr2rpy(m[i]))
         return rpy
-        
+
 def rpy2r(roll, pitch=None,yaw=None):
     """
     Rotation from RPY angles.
-    
+
     Two call forms:
         - R = rpy2r(S{theta}, S{phi}, S{psi})
         - R = rpy2r([S{theta}, S{phi}, S{psi}])
@@ -321,7 +321,7 @@ def rpy2r(roll, pitch=None,yaw=None):
 def rpy2tr(roll, pitch=None, yaw=None):
     """
     Rotation from RPY angles.
-    
+
     Two call forms:
         - R = rpy2tr(r, p, y)
         - R = rpy2tr([r, p, y])
@@ -347,22 +347,22 @@ def rpy2tr(roll, pitch=None, yaw=None):
 def oa2r(o,a):
     """Rotation from 2 vectors.
     The matrix is formed from 3 vectors such that::
-        R = [N O A] and N = O x A.  
+        R = [N O A] and N = O x A.
 
-    In robotics A is the approach vector, along the direction of the robot's 
-    gripper, and O is the orientation vector in the direction between the 
+    In robotics A is the approach vector, along the direction of the robot's
+    gripper, and O is the orientation vector in the direction between the
     fingertips.
-    
-    The submatrix is guaranteed to be orthonormal so long as O and A are 
+
+    The submatrix is guaranteed to be orthonormal so long as O and A are
     not parallel.
-    
+
     @type o: 3-vector
     @param o: The orientation vector.
     @type a: 3-vector
     @param a: The approach vector
     @rtype: 3x3 orthonormal rotation matrix
     @return: Rotatation matrix
-    
+
     @see: L{rpy2r}, L{eul2r}
     """
     n = crossp(o, a)
@@ -377,27 +377,27 @@ def oa2tr(o,a):
     """otation from 2 vectors.
     The rotation submatrix is formed from 3 vectors such that::
 
-        R = [N O A] and N = O x A.  
+        R = [N O A] and N = O x A.
 
-    In robotics A is the approach vector, along the direction of the robot's 
-    gripper, and O is the orientation vector in the direction between the 
+    In robotics A is the approach vector, along the direction of the robot's
+    gripper, and O is the orientation vector in the direction between the
     fingertips.
-    
-    The submatrix is guaranteed to be orthonormal so long as O and A are 
+
+    The submatrix is guaranteed to be orthonormal so long as O and A are
     not parallel.
-    
+
     @type o: 3-vector
     @param o: The orientation vector.
     @type a: 3-vector
     @param a: The approach vector
     @rtype: 4x4 homogeneous transformation matrix
     @return: Transformation matrix
-    
+
     @see: L{rpy2tr}, L{eul2tr}
     """
     return r2t(oa2r(o,a))
-    
-    
+
+
 ###################################### angle/vector form
 
 
@@ -405,7 +405,7 @@ def rotvec2r(theta, v):
     """
     Rotation about arbitrary axis.  Compute a rotation matrix representing
     a rotation of C{theta} about the vector C{v}.
-    
+
     @type v: 3-vector
     @param v: rotation vector
     @type theta: number
@@ -428,7 +428,7 @@ def rotvec2tr(theta, v):
     """
     Rotation about arbitrary axis.  Compute a rotation matrix representing
     a rotation of C{theta} about the vector C{v}.
-    
+
     @type v: 3-vector
     @param v: rotation vector
     @type theta: number
@@ -447,26 +447,26 @@ def rotvec2tr(theta, v):
 def transl(x, y=None, z=None):
     """
     Create or decompose translational homogeneous transformations.
-    
+
     Create a homogeneous transformation
     ===================================
-    
+
         - T = transl(v)
         - T = transl(vx, vy, vz)
-        
+
         The transformation is created with a unit rotation submatrix.
         The translational elements are set from elements of v which is
         a list, array or matrix, or from separate passed elements.
-    
+
     Decompose a homogeneous transformation
     ======================================
-    
 
-        - v = transl(T)   
-    
+
+        - v = transl(T)
+
         Return the translation vector
     """
-           
+
     if y==None and z==None:
             x=mat(x)
             try:
@@ -491,18 +491,18 @@ def skew(*args):
     """
     Convert to/from skew-symmetric form.  A skew symmetric matrix is a matrix
     such that M = -M'
-    
+
     Two call forms
-    
+
         -ss = skew(v)
         -v = skew(ss)
-        
+
     The first form builds a 3x3 skew-symmetric from a 3-element vector v.
     The second form takes a 3x3 skew-symmetric matrix and returns the 3 unique
     elements that it contains.
-    
+
     """
-    
+
     def ss(b):
         return  matrix([
             [0, -b[2],  b[1]],
@@ -512,15 +512,15 @@ def skew(*args):
     if len(args) == 1:
         # convert matrix to skew vector
         b = args[0];
-        
+
         if isrot(b):
             return 0.5*matrix( [b[2,1]-b[1,2], b[0,2]-b[2,0], b[1,0]-b[0,1]] );
         elif ishomog(b):
             return vstack( (b[0:3,3], 0.5*matrix( [b[2,1]-b[1,2], b[0,2]-b[2,0], b[1,0]-b[0,1]] ).T) );
 
-    
+
     # build skew-symmetric matrix
-          
+
         b = arg2array(b);
         if len(b) == 3:
             return ss(b);
@@ -528,13 +528,13 @@ def skew(*args):
             r = hstack( (ss(b[3:6]), mat(b[0:3]).T) );
             r = vstack( (r, mat([0, 0, 0, 1])) );
             return r;
-            
+
     elif len(args) == 3:
-            return ss(args);    
+            return ss(args);
     elif len(args) == 6:
             r = hstack( (ss(args[3:6]), mat(args[0:3]).T) );
             r = vstack( (r, mat([0, 0, 0, 1])) );
-            return r;    
+            return r;
     else:
         raise ValueError;
 
@@ -545,7 +545,7 @@ def tr2diff(t1, t2):
     Convert a transform difference to differential representation.
     Returns the 6-element differential motion required to move
     from T1 to T2 in base coordinates.
-    
+
     @type t1: 4x4 homogeneous transform
     @param t1: Initial value
     @type t2: 4x4 homogeneous transform
@@ -554,10 +554,10 @@ def tr2diff(t1, t2):
     @return: Differential motion [dx dy dz drx dry drz]
     @see: L{skew}
     """
-    
+
     t1 = mat(t1)
     t2 = mat(t2)
-    
+
     d = concatenate(
         (t2[0:3,3]-t1[0:3,3],
         0.5*(   crossp(t1[0:3,0], t2[0:3,0]) +
@@ -574,10 +574,10 @@ def trinterp(T0, T1, r):
     Interpolate homogeneous transformations.
     Compute a homogeneous transform interpolation between C{T0} and C{T1} as
     C{r} varies from 0 to 1 such that::
-    
+
         trinterp(T0, T1, 0) = T0
         trinterp(T0, T1, 1) = T1
-        
+
     Rotation is interpolated using quaternion spherical linear interpolation.
 
     @type T0: 4x4 homogeneous transform
@@ -590,9 +590,9 @@ def trinterp(T0, T1, r):
     @return: Interpolated value
     @see: L{quaternion}, L{ctraj}
     """
-    
-    q0 = Q.quaternion(T0)
-    q1 = Q.quaternion(T1)
+
+    q0 = Quaternion(T0)
+    q1 = Quaternion(T1)
     p0 = transl(T0)
     p1 = transl(T1)
 
@@ -607,10 +607,10 @@ def trnorm(t):
     Normalize a homogeneous transformation.
     Finite word length arithmetic can cause transforms to become `unnormalized',
     that is the rotation submatrix is no longer orthonormal (det(R) != 1).
-    
+
     The rotation submatrix is re-orthogonalized such that the approach vector
     (third column) is unchanged in direction::
-    
+
         N = O x A
         O = A x N
 
@@ -636,8 +636,8 @@ def t2r(T):
     @param T: the transform matrix to convert
     @rtype: 3x3 orthonormal rotation matrix
     @return: rotation submatrix
-    """    
-    
+    """
+
     if ishomog(T)==False:
         error( 'input must be a homogeneous transform')
     return T[0:3,0:3]
@@ -646,14 +646,14 @@ def t2r(T):
 def r2t(R):
     """
     Convert a 3x3 orthonormal rotation matrix to a 4x4 homogeneous transformation::
-    
+
         T = | R 0 |
             | 0 1 |
-            
+
     @type R: 3x3 orthonormal rotation matrix
     @param R: the rotation matrix to convert
     @rtype: 4x4 homogeneous matrix
     @return: homogeneous equivalent
     """
-    
+
     return concatenate( (concatenate( (R, zeros((3,1))),1), mat([0,0,0,1])) )

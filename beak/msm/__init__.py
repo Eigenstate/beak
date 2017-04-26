@@ -3,11 +3,11 @@
 __version__ = '0.0.0a1'
 __author__  = 'Robin Betz'
 
-from . import clustervis
-from . import msmvis
-from . import visualizers
+import clustervis
+import msmvis
+import visualizers
 
-from .aggregator import ClusterCenter, ClusterDensity
-from .sampler import Sampler, ClusterSampler
-from .utils import *
+from aggregator import ClusterCenter, ClusterDensity
+from sampler import Sampler, ClusterSampler
+from utils import *
 
