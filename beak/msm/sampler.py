@@ -4,22 +4,30 @@ Contains functionality for loading project-specific datasets
 from __future__ import print_function
 import os
 import numpy as np
+import pickle
 import random
 from configparser import RawConfigParser
 from glob import glob
-from msmbuilder.utils import load
 from socket import gethostname
-from . import utils
+from beak.msm import utils
+
+import sys
+from subprocess import PIPE, Popen
+from threading import Thread
+import time
+from queue import Queue, Empty # Python 3 queue
+
 #pylint: disable=import-error,no-name-in-module
 try:
     from VMD import evaltcl
     import vmd
+    import display
     import molecule
     import molrep
     import vmdnumpy
     from atomsel import atomsel
 except ImportError:
-    from vmd import evaltcl, molecule, molrep, vmdnumpy, atomsel
+    from vmd import evaltcl, molecule, molrep, vmdnumpy, atomsel, display
     atomsel = atomsel.atomsel
 #pylint: enable=import-error,no-name-in-module
 
@@ -74,21 +82,21 @@ class Sampler(object):
 
         # Find and load the msm, tica, and clusters
         substr = os.path.join(self.dir, "production", str(self.generation))
-        self.mmsm = load(os.path.join(substr, "mmsm_G%d.pkl" % self.generation))
-        self.msm = load(os.path.join(substr, "msm_G%d.pkl" % self.generation))
-        tica = load(os.path.join(substr, "testing.tica.pkl"))
-        clust = load(os.path.join(substr, "testing.cluster.pkl"))
+        self.mmsm = utils.load(os.path.join(substr, "mmsm_G%d.pkl" % self.generation))
+        self.msm = utils.load(os.path.join(substr, "msm_G%d.pkl" % self.generation))
+        tica = utils.load(os.path.join(substr, "testing.tica.pkl"))
+        clust = utils.load(os.path.join(substr, "testing.cluster.pkl"))
         self.scores = []
         if os.path.isfile(os.path.join(substr, "mmsm_scores.pkl")):
             print("Loading scores")
-            self.scores = load(os.path.join(substr, "mmsm_scores.pkl"))
+            self.scores = utils.load(os.path.join(substr, "mmsm_scores.pkl"))
         else:
             print("Couldn't find scores: %s"
                   % os.path.join(substr, "mmsm_scores.pkl"))
 
         # Handle saved pre-msm clusters, as naming scheme changed...
         if os.path.isfile(os.path.join(substr, "testing.mcluster.pkl")):
-            mclust = load(os.path.join(substr, "testing.mcluster.pkl"))
+            mclust = utils.load(os.path.join(substr, "testing.mcluster.pkl"))
             print("Striding: %d" % self.stride)
             self.mclust = [c[::self.stride] for c in mclust]
             self.clust = [c[::self.stride] for c in clust]
@@ -392,6 +400,7 @@ class DensitySampler(object):
             clustdir (str): Directory with cluster dx files
             clusters (str): Cluster data pickle path
             msm (str): MSM pickle path
+            topology (str): One topology for all input files, for DESRES
         """
         # Set visualization stuff
         evaltcl("color scale method BGR")
@@ -402,12 +411,16 @@ class DensitySampler(object):
 
         self.ligands = self.config["system"]["ligands"].split(',')
         self.nligs = int(self.config["system"]["num_ligands"])
+        self.dir = self.config["system"]["rootdir"]
 
         self.generation = kwargs.get("generation")
         self.clustdir = kwargs.get("clustdir")
         self.prodfiles = kwargs.get("prodfiles")
+        if not self.prodfiles:
+            self.prodfiles = utils.get_prodfiles(self.generation, self.dir)
 
         # Load reference structure for later alignment
+        # Hide it
         self.reference = self.config["system"]["reference"]
         if "prmtop" in self.reference:
             self.refid = molecule.load("parm7", self.reference,
@@ -415,23 +428,40 @@ class DensitySampler(object):
         elif "psf" in self.reference:
             self.refid = molecule.load("psf", self.reference,
                     "pdb", self.reference.replace("psf", "pdb"))
-        self.refsel = self.config["system"]["refsel"]
-        self.aselref = atomsel(self.refsel, molid=self.refid)
+        molrep.delrep(self.refid, 0)
+        molecule.rename(self.refid, "Reference")
+
+        self.prmsel = self.config["system"]["refsel"]
+        self.aselref = atomsel(self.prmsel, molid=self.refid)
         self.psfsel = self.config["system"]["canonical_sel"]
 
         # List all of the filenames so we can look them up later
         self.molids = {}
         self._load_densities()
 
-        # Find and load the msm, and clusters
-        self.msm = load(kwargs.get("msm"))
-        self.clusters = load(kwargs.get("clusters"))
+        # Find and load the msm, and clusters, and tics
+        self.msmname = kwargs.get("msm")
+        self.scores = kwargs.get("scores")
+        self.msm = utils.load(self.msmname)
+        self.clusters = utils.load(kwargs.get("clusters"))
+        self.tica = None
+        if kwargs.get("tica") is not None:
+            self.tica = utils.load(kwargs.get("tica"))
+        self.topology = kwargs.get("topology")
+
+        # Multithreaded updates
+        self._queue = Queue()
+        self._threads = []
 
     #==========================================================================
 
     def __del__(self):
+        molecule.delete(self.refid)
         for mid in self.molids.values():
-            molecule.delete(mid)
+            for _ in mid:
+                molecule.delete(_)
+        for t in self._threads:
+            if t.isAlive(): t.terminate()
         del self.clusters
         del self.msm
 
@@ -445,61 +475,169 @@ class DensitySampler(object):
                 key=lambda x:int(x.split("/")[-1].replace(".dx",""))):
             cid = int(cfile.split("/")[-1].replace(".dx", ""))
             if "prmtop" in self.reference:
-                self.molids[cid] = molecule.load("parm7", self.reference, "crdbox",
-                                                 self.reference.replace("prmtop", "inpcrd"))
+                molid = molecule.load("parm7", self.reference, "crdbox",
+                                       self.reference.replace("prmtop", "inpcrd"))
             else:
-                self.molids[cid] = molecule.load("psf", self.reference, "pdb",
-                                                 self.reference.replace("psf", "pdb"))
+                molid = molecule.load("psf", self.reference, "pdb",
+                                      self.reference.replace("psf", "pdb"))
+            self.molids[cid] = [molid]
 
-            molecule.rename(self.molids[cid], str(cid))
-            molecule.read(self.molids[cid], "dx", cfile, waitfor=-1)
-            molrep.delrep(self.molids[cid], 0)
-            molrep.addrep(self.molids[cid], style="NewRibbons 0.1 12.0 12.0",
+            molecule.rename(molid, str(cid))
+            molecule.read(molid, "dx", cfile, waitfor=-1)
+            molrep.delrep(molid, 0)
+            color = 9 if (cid%33 == 8) else cid % 33
+            molrep.addrep(molid, style="NewRibbons 0.1 12.0 12.0",
                           selection="protein or resname ACE NMA",
-                          color="ColorID %d" % (cid%33), material="Opaque")
+                          color="ColorID %d" % color, material="Opaque")
             evaltcl("mol drawframes %d %d %d"
-                    % (self.molids[cid], molrep.num(self.molids[cid])-1, 0))
-            molrep.addrep(self.molids[cid], style="Isosurface 0.05 0 0 1 1",
-                          color="ColorID %d" % (cid%33))
+                    % (molid, molrep.num(molid)-1, 0))
+            molrep.addrep(molid, style="Isosurface 0.05 0 0 1 1",
+                          color="ColorID %d" % color)
 
     #==========================================================================
 
     def _load_frame(self, cluster):
         """
         Picks a frame corresponding to the given cluster and loads it,
-        setting representation to the correct ligand
+        setting representation to the correct ligand. User fields 1-5 will
+        be populated with the first 5 tics.
         Args:
-            cluster(int): The cluster to sample
+            cluster (int): The cluster to sample
         """
         # Pick a frame at random containing this cluster
         frames = {k:v for k, v in {i:np.ravel(np.where(c == cluster)) \
                   for i, c in enumerate(self.clusters)}.items() \
                   if len(v)}
-        clustindex = int(random.choice(frames.keys()))
+        clustindex = int(random.choice(list(frames)))
         frameindex = int(random.choice(frames[clustindex]))
-        filename = self.prodfiles[clustindex / self.nligs]
-
-        # Load this frame
-        molecule.read(self.molids[cluster],
-                      utils.get_trajectory_format(filename), filename,
-                      beg=frameindex, end=frameindex, waitfor=-1)
-
-        # Set representations so this frame appears
+        filename = self.prodfiles[int(clustindex / self.nligs)]
         ligidx = clustindex % self.nligs
-        molrep.addrep(self.molids[cluster], style="Licorice 0.3 12.0 12.0",
-                      selection="noh and same fragment as residue %d" % ligidx,
-                      color="ColorID %d" % (cluster%33), material="Opaque")
-        evaltcl("mol drawframes %d %d %d"
-                % (self.molids[cluster], molrep.num(self.molids[cluster])-1,
-                   molecule.numframes(self.molids[cluster])))
+
+        # Figure out if we need an alternate molid for this frame
+        # ie if it came from a non stripped trajectory we need to load
+        # the non stripped topology as an alternate molid for the cluster
+        if self.topology is None:
+            topology = utils.get_topology(filename, self.dir)
+        else:
+            topology = self.topology
+
+        availtopos = [ molecule.get_filenames(_) for _ in self.molids[cluster] ]
+        if topology in availtopos:
+            molid = self.molids[availtopos.index(topology)]
+        else:
+            molid = None
+
+        # Load and align this frame
+        m2 = utils.load_trajectory(filename, self.dir,
+                                   aselref=self.aselref,
+                                   psfref=self.psfsel,
+                                   prmref=self.prmsel,
+                                   frame=frameindex,
+                                   topology=topology,
+                                   molid=molid)
+        molecule.set_visible(m2, molecule.get_visible(self.molids[cluster][0]))
+        if m2 not in self.molids[cluster]:
+            self.molids[cluster].append(m2)
+
+        # Set representations so this frame appears along with parent cluster
+        molecule.rename(m2, "frame_%d" % cluster)
+        molrep.delrep(m2, 0)
+        ligands = sorted(set(atomsel("resname %s" % " ".join(self.ligands),
+                                     molid=m2).get("residue")))
+        color = 9 if (cluster%33 == 8) else cluster % 33
+        molrep.addrep(m2, style="Licorice 0.3 12.0 12.0",
+                      selection="noh and same fragment as residue %d"
+                                % ligands[ligidx],
+                      color="User", material="Opaque")
+        molrep.set_colorupdate(m2, molrep.num(m2)-1, True)
+        molrep.set_scaleminmax(m2, molrep.num(m2)-1, 0., 1.)
+
+        if self.tica is None:
+            molrep.modrep(m2, molrep.num(m2)-1, color="ColorID %d" % color)
+                      #color="ColorID %d" % color, material="Opaque")
+
+        # Set ligand user field by first 5 tics
+        lsel = atomsel("noh and same fragment as residue %d"
+                       % ligands[ligidx], molid=m2)
+
+        if self.tica is not None:
+            for featidx in range(1,5):
+                field = "user" if featidx == 1 else "user%d" % featidx
+                minl = min(min(d[:,featidx]) for d in self.tica)
+                rge = max(max(d[:,featidx]) for d in self.tica) - minl
+                dat = (self.tica[clustindex][frameindex, featidx] - minl)/rge
+                lsel.set(field, dat)
+
 
     #==========================================================================
 
-    def add_frames(self, cluster, num=10):
+    def show_cluster(self, cluster, shown=None):
         """
-        Adds num random frames depicting the given cluster to
-        the given molecule
+        Shows all frames and density for the specified cluster
+
+        Args:
+            cluster (int): Cluster label to show
+            shown (bool): If I should show or hide. None for toggle
         """
-        for _ in range(num):
-            self._load_frame(cluster)
+        visstate = shown
+        for molid in self.molids[cluster]:
+            if visstate is None:
+                visstate = not molecule.get_visible(molid)
+            molecule.set_visible(molid, visstate)
+
+    #==========================================================================
+
+    def _enqueue_output(self, graphproc):
+        while graphproc.poll() is None: # while it's running
+            try:
+                for line in iter(graphproc.stdout.readline, b''):
+                    #queue.put(line)
+                    data = int(line.decode("utf-8"))
+                    self.show_cluster(data)
+                #graphproc.stdout.close()
+            except: pass
+            time.sleep(0.05)
+
+    #==========================================================================
+
+    def _dequeue_output(self, queue, enquer):
+        while enquer.isAlive():
+            #time.sleep(0.05)
+            #try: line = queue.get_nowait()
+            try:
+                sys.stdout.flush()
+                line = queue.get(timeout=0.05)
+                sys.stdout.flush()
+            except Empty:
+                #time.sleep(0.05)
+                continue
+            data = int(line.decode("utf-8"))
+            self.show_cluster(data)
+
+    #==========================================================================
+
+    def graph_msm(self):
+        # Hide all clusters to start
+        for cluster in self.molids:
+            self.show_cluster(cluster, shown=False)
+        # Start the graph in a new process
+        # It should have a new socket to X rather than sharing this one's...
+        ON_POSIX = 'posix' in sys.builtin_module_names
+        p = Popen(["/home/robin/Work/Code/beak/beak/msm/display_msm.py",
+                   self.msmname
+                   ],
+                   stdout=PIPE,
+                  bufsize=1, close_fds=ON_POSIX)
+        #q = Queue()
+        t1 = Thread(target=self._enqueue_output, args=(p, ))
+        t1.daemon = True
+        t1.start()
+        self._threads.append(t1)
+
+        #t2 = Thread(target=self._dequeue_output, args=(q, t1))
+        #t2.daemon = True
+        #t2.start()
+
+    #==========================================================================
+
 
