@@ -267,6 +267,7 @@ class ClusterDensity(object):
             clusters (list of ndarray): Cluster data
             config (ConfigParser): Config file with other system information
             maxframes (list of int): Number of frames to read from each file
+            topology (str): Single topology to use for all frames
         """
         self.prodfiles = prodfiles
         self.clusters = clusters
