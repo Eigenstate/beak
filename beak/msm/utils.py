@@ -5,6 +5,7 @@ from __future__ import print_function
 import os
 from glob import glob
 import h5py
+import pickle
 #pylint: disable=import-error, invalid-name, unused-import
 try:
     from vmd import atomsel, molecule
@@ -124,6 +125,7 @@ def load_trajectory(filename, rootdir, **kwargs):
         frame (int): Single frame to load, or None for all frames, or (beg,end)
         topology (str): Manual topology choice to use, or None for autodetect
         molid (int): Molecule ID to load trajectory into, or None for new molid
+        skip (int): Stride to load, defaults to 1
 
     Returns:
         (int): VMD molecule ID of loaded and aligned trajectory
@@ -142,16 +144,17 @@ def load_trajectory(filename, rootdir, **kwargs):
     psfref = kwargs.get("psfref", None)
     prmref = kwargs.get("prmref", None)
     frame = kwargs.get("frame", None)
+    skip = kwargs.get("skip", 1)
 
     # Load the trajectory in
     fmt = get_trajectory_format(filename)
     if frame is None:
-        molecule.read(mid, fmt, filename, waitfor=-1)
+        molecule.read(mid, fmt, filename, waitfor=-1, skip=skip)
     elif isinstance(frame, int):
         molecule.read(mid, fmt, filename, beg=frame, end=frame, waitfor=-1)
     elif len(frame) == 2:
         molecule.read(mid, fmt, filename, beg=frame[0], end=frame[1],
-                      waitfor=-1)
+                      waitfor=-1, skip=skip)
     else:
         raise ValueError("I don't understand loading frames: %s" % frame)
 
@@ -215,4 +218,13 @@ def get_prodfiles(generation, rootdir, new=False):
     return prodfiles
 
 #==============================================================================
+
+def load(filename):
+    """
+    Python 2/3 compatible load function
+    """
+    return pickle.load(open(filename, 'rb'), encoding="latin-1")
+
+#==============================================================================
+
 
