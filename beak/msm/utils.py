@@ -163,6 +163,7 @@ def load_trajectory(filename, rootdir, **kwargs):
         return mid
     framsel = atomsel(psfref if "psf" in topology else prmref, molid=mid)
     for frame in range(molecule.numframes(mid)):
+        molecule.set_frame(mid, frame)
         framsel.update()
         atomsel("all", molid=mid, frame=frame).move(framsel.fit(aselref))
     return mid
