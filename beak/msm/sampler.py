@@ -496,7 +496,7 @@ class DensitySampler(object):
 
     #==========================================================================
 
-    def _load_frame(self, cluster):
+    def load_frame(self, cluster):
         """
         Picks a frame corresponding to the given cluster and loads it,
         setting representation to the correct ligand. User fields 1-5 will
