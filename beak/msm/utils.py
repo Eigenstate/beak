@@ -4,17 +4,12 @@ Contains useful utilities for running MSMs
 from __future__ import print_function
 import os
 from glob import glob
-import h5py
 import pickle
-#pylint: disable=import-error, invalid-name, unused-import
-try:
-    from vmd import atomsel, molecule
-    atomsel = atomsel.atomsel
-except ImportError:
-    import vmd
-    import molecule
-    from atomsel import atomsel
-#pylint: enable=import-error, invalid-name, unused-import
+import h5py
+import numpy as np
+from msmbuilder.msm import MarkovStateModel
+from vmd import atomsel, molecule
+atomsel = atomsel.atomsel #pylint: disable=invalid-name
 
 #==============================================================================
 
@@ -228,4 +223,49 @@ def load(filename):
 
 #==============================================================================
 
+def get_equivalent_clusters(label, clust1, clust2):
+    """
+    Returns equivalent cluster(s) between MSMs.
 
+    Args:
+        label (int): Which cluster to look at, in clust1
+        clust1 (list of ndarray): First set of clusters
+        clust2 (list of ndarray): Second set of clusters
+
+    Returns:
+        (list of int): Label(s) in clust2 that match input label
+    """
+    found = set()
+    frames = {k:v for k, v in {i:np.ravel(np.where(c == label))
+                               for i, c in enumerate(clust1)
+                              }.items() if len(v)}
+
+    for trajidx, cidx in frames.items():
+        found.update([clust2[trajidx][c] for c in cidx \
+                      if c < len(clust2[trajidx])])
+
+    return found
+
+#==============================================================================
+
+def generate_truelabeled_msm(truelabels, length, lag):
+    """
+    Generates a MSM of given length with the labelled data
+
+    Args:
+        truelabels (list of ndarray): Cluster labels
+        length (int): Length for labels to use
+        lag (int): Lag time, in frames, for MSM
+
+    Returns:
+        (MarkovStateModel): the model
+    """
+    msm = MarkovStateModel(lag_time=lag,
+                           reversible_type="transpose",
+                           ergodic_cutoff="off",
+                           prior_counts=0.000001)
+
+    msm.fit([t[:length] for t in truelabels])
+    return msm
+
+#==============================================================================
