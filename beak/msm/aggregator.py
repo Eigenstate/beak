@@ -4,22 +4,15 @@ all trajectory doesn't have to be loaded.
 """
 from __future__ import print_function
 import os
-import numpy as np
 import sys
-#pylint: disable=import-error
-try:
-    from vmd import atomsel, molecule, vmdnumpy
-    atomsel = atomsel.atomsel #pylint: disable=invalid-name
-except ImportError:
-    import vmd
-    import molecule
-    import vmdnumpy
-    from atomsel import atomsel
-#pylint: enable=import-error
+import numpy as np
 
 from Dabble import VmdSilencer
 from gridData import Grid
 from beak.msm import utils
+from vmd import atomsel, molecule, vmdnumpy
+
+atomsel = atomsel.atomsel #pylint: disable=invalid-name
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #              Cluster means and most representative structure                #
@@ -52,7 +45,7 @@ class ClusterCenter(object):
 
     #==========================================================================
 
-    def update(self, molid, trajfile, frame, ligid, mask=None):
+    def update(self, molid, trajfile, frame, ligid, **kwargs):
         """
         Updates the mean and the most representative ligand, if found.
 
@@ -67,6 +60,7 @@ class ClusterCenter(object):
         Returns:
             (bool) if the most representative frame was updated
         """
+        mask = kwargs.get("mask", None)
         coords = np.compress(mask, vmdnumpy.timestep(molid, frame), axis=0)
         dev = self._do_update(coords)
 
@@ -206,7 +200,7 @@ def get_cluster_centers(prodfiles, clusts, clusters, ligands, topology):
 
                 # Add frames to running total
                 for frame in frames:
-                    bests[cls].update(molid, trajfile, frame, lig, mask)
+                    bests[cls].update(molid, trajfile, frame, lig, mask=mask)
 
         # Clean up
         molecule.delete(molid)
@@ -248,7 +242,7 @@ def save_cluster_centers(prodfiles, clust, msm, ligands, outdir, topology):
 #                            Cluster densities                                #
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-class ClusterDensity(object):
+class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
     """
     Obtains cluster locations as a density map. Aims to be memory efficient
     and as fast as possible by interating through trajectories only once,
@@ -279,6 +273,7 @@ class ClusterDensity(object):
         self.ranges = [[-r/2., r/2.] for r in self.dimensions]
         self.grids = {}
         self.counts = {}
+        self.means = {}
 
         # Handle optional arguments
         self.maxframes = kwargs.get("maxframes", None)
@@ -320,11 +315,14 @@ class ClusterDensity(object):
                                        range=self.ranges,
                                        normed=False)
 
+
         if self.grids.get(label):
             self.grids[label][0] += binned
+            self.means[label] += data
             self.counts[label] += 1
         else:
             self.grids[label] = [binned, edges]
+            self.means[label] = data
             self.counts[label] = 1
 
     #==========================================================================
@@ -365,9 +363,8 @@ class ClusterDensity(object):
             sys.stdout.flush()
 
         # Go through each frame just once
-        for frame in range(molecule.numframes(molid)):
-
         # Update density for each ligand
+        for frame in range(molecule.numframes(molid)):
             for i in range(len(ligids)):
                 coords = np.compress(masks[i],
                                      vmdnumpy.timestep(molid, frame),
@@ -395,12 +392,16 @@ class ClusterDensity(object):
                 sys.stdout.flush()
                 self._process_traj(traj)
 
-        for label, hist in self.grids.items():
-            den = Grid(hist[0], edges=hist[1], origin=[0., 0., 0.])
-            den /= float(self.counts[label])
-            den.export(os.path.join(outdir, "%s.dx" % label), file_format="dx")
+        with open(os.path.join(outdir, "means", 'w')) as meansfile:
+            for label, hist in self.grids.items():
+                den = Grid(hist[0], edges=hist[1], origin=[0., 0., 0.])
+                den /= float(self.counts[label])
+                den.export(os.path.join(outdir, "%s.dx" % label),
+                           file_format="dx")
+
+                mean = np.mean(self.means[label]) / float(self.counts[label])
+                meansfile.write("%s\t%f\n" % (label, mean))
 
     #==========================================================================
 
 #==============================================================================
-
