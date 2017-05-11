@@ -296,9 +296,13 @@ class ClusterDensity(object):
             raise ValueError("Unknown format of reference file %s" % refname)
 
         # Sanity check that saved structure could actually be read
-        if not molecule.exists(refid):
+        if not molecule.exists(self.refid):
             raise ValueError("Couldn't load reference structure %s"
                              % refname)
+
+        # Sanity check there are actually production files to process
+        if not len(self.prodfiles):
+            raise ValueError("No trajectory files to process")
 
         self.refsel = config["system"]["refsel"]
         self.aselref = atomsel(self.refsel, molid=self.refid)

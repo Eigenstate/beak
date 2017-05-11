@@ -15,7 +15,10 @@ import sys
 from subprocess import PIPE, Popen
 from threading import Thread
 import time
-from queue import Queue, Empty # Python 3 queue
+try:
+    from queue import Queue, Empty # Python 3 queue
+except: # Python 2 
+    pass
 
 #pylint: disable=import-error,no-name-in-module
 try:
