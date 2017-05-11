@@ -10,9 +10,9 @@ the authors is made.
 """
 
 from numpy import *
-from .utility import *
+from beak.render.utility import *
 from numpy.linalg import norm
-import quaternion
+import beak.render.quaternion
 
 def rotx(theta):
     """

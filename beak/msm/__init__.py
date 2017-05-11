@@ -3,10 +3,7 @@
 __version__ = '0.0.0a1'
 __author__  = 'Robin Betz'
 
-import clustervis
-import visualizers
-
-from aggregator import ClusterCenter, ClusterDensity
-from sampler import Sampler, ClusterSampler
-from utils import *
+from beak.msm.aggregator import ClusterCenter, ClusterDensity
+from beak.msm.sampler import Sampler, ClusterSampler
+from beak.msm.utils import *
 

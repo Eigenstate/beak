@@ -3,7 +3,7 @@
 __version__ = '0.0.0a1'
 __author__  = 'Robin Betz'
 
-from cameramovement import CameraMovement
-from quaternion import Quaternion
-from transform import *
+from beak.render.cameramovement import CameraMovement
+from beak.render.quaternion import Quaternion
+from beak.render.transform import *
 
