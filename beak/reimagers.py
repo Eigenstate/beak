@@ -62,8 +62,8 @@ def check_empty(filename):
     output = checker.stdout.read()
     r = re.compile(r"\(\d+ currently\)")
     r2 = re.compile(r"\d+")
-    match = r.search(output)
-    if match is None:return True
+    match = r.search(output.decode("utf-8"))
+    if match is None: return True
     m2 = r2.search(match.group())
     if m2 is None: return True
     return not bool(int(m2.group()))
