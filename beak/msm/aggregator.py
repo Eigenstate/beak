@@ -12,7 +12,6 @@ from gridData import Grid
 from beak.msm import utils
 from vmd import atomsel, molecule, vmdnumpy
 
-atomsel = atomsel.atomsel #pylint: disable=invalid-name
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #              Cluster means and most representative structure                #
@@ -392,7 +391,7 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
                 sys.stdout.flush()
                 self._process_traj(traj)
 
-        with open(os.path.join(outdir, "means", 'w')) as meansfile:
+        with open(os.path.join(outdir, "means"), 'w') as meansfile:
             for label, hist in self.grids.items():
                 den = Grid(hist[0], edges=hist[1], origin=[0., 0., 0.])
                 den /= float(self.counts[label])
