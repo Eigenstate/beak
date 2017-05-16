@@ -398,8 +398,11 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
                 den.export(os.path.join(outdir, "%s.dx" % label),
                            file_format="dx")
 
-                mean = np.mean(self.means[label]) / float(self.counts[label])
-                meansfile.write("%s\t%f\n" % (label, mean))
+                mean = np.mean(self.means[label] / float(self.counts[label]),
+                               axis=0)
+                meansfile.write("%s\t%s\n" % (label, mean))
+                meansfile.flush()
+
 
     #==========================================================================
 
