@@ -9,7 +9,7 @@ import h5py
 import numpy as np
 from msmbuilder.msm import MarkovStateModel
 from vmd import atomsel, molecule
-atomsel = atomsel.atomsel #pylint: disable=invalid-name
+atomsel = atomsel.atomsel
 
 #==============================================================================
 
@@ -204,6 +204,8 @@ def get_prodfiles(generation, rootdir, new=False):
 
         # Fallpack to previous non-stripped reimaging
         # Fallback again to even older non-equilibration reimaging
+        if not len(pfs):
+            pfs = glob(os.path.join(rpath, "Reimaged_strip_Eq6*.nc"))
         if not len(pfs):
             pfs = glob(os.path.join(rpath, "Reimaged_Eq1*.nc"))
         if not len(pfs):
