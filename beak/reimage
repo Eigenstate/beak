@@ -3,9 +3,9 @@
 Does reimaging as a standalone python script
 """
 import argparse
-import subprocess
 import os
-from beak.reimagers import *
+import sys
+from beak.reimagers import reimage
 
 if __name__ == "__main__":
     # Process args

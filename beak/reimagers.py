@@ -10,13 +10,7 @@ import re
 import subprocess
 import sys
 import itertools
-try:
-    from vmd import molecule, atomsel
-    atomsel = atomsel.atomsel
-except ImportError:
-    import vmd
-    import molecule
-    from atomsel import atomsel
+from vmd import molecule, atomsel
 
 #==============================================================================
 

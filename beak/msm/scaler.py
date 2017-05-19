@@ -1,5 +1,4 @@
-import vmd, molecule
-from atomsel import *
+from vmd import atomsel
 import numpy as np
 
 def get_scaler(molid, steepness=0.5):

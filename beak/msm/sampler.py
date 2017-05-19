@@ -4,35 +4,19 @@ Contains functionality for loading project-specific datasets
 from __future__ import print_function
 import os
 import numpy as np
-import pickle
 import random
+import sys
+import time
 from configparser import RawConfigParser
 from glob import glob
 from socket import gethostname
 from beak.msm import utils
 
-import sys
+from beak.msm.utils import load
 from subprocess import PIPE, Popen
 from threading import Thread
-import time
-try:
-    from queue import Queue, Empty # Python 3 queue
-except: # Python 2 
-    pass
-
-#pylint: disable=import-error,no-name-in-module
-try:
-    from VMD import evaltcl
-    import vmd
-    import display
-    import molecule
-    import molrep
-    import vmdnumpy
-    from atomsel import atomsel
-except ImportError:
-    from vmd import evaltcl, molecule, molrep, vmdnumpy, atomsel, display
-    atomsel = atomsel.atomsel
-#pylint: enable=import-error,no-name-in-module
+from queue import Queue, Empty # Python 3 queue
+from vmd import evaltcl, molecule, molrep, atomsel
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 

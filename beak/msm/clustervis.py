@@ -4,20 +4,8 @@ MSM representations
 """
 import os
 import numpy as np
-from glob import glob
-from configparser import RawConfigParser
-from socket import gethostname
-from msmbuilder.lumping import PCCAPlus
-from msmbuilder.msm import MarkovStateModel
-from msmbuilder.tpt import *
-from msmbuilder.utils import load
-try:
-    from vmd import molecule, molrep, vmdnumpy, atomsel
-    atomsel = atomsel.atomsel
-except:
-    import vmd
-    import molecule, molrep, vmdnumpy
-    from atomsel import atomsel
+from msmbuilder.tpt import hub_scores, net_fluxes, top_path
+from vmd import molecule, molrep, vmdnumpy, atomsel
 
 #==============================================================================
 

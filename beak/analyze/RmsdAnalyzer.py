@@ -23,15 +23,7 @@ from __future__ import print_function
 from . import Analyzer
 
 import numpy as np
-from matplotlib import pyplot as plt
-
-try:
-    import vmd
-    from atomsel import atomsel
-    import Molecule
-except:
-    from vmd import atomsel, Molecule
-    atomsel = atomsel.atomsel
+from vmd import atomsel, Molecule
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 

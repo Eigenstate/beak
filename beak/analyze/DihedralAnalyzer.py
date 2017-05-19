@@ -23,16 +23,8 @@ from __future__ import print_function
 from . import Analyzer
 
 import numpy as np
-from matplotlib import pyplot as plt
 import math
-
-try:
-    import vmd
-    from atomsel import atomsel
-    import Molecule
-except:
-    from vmd import atomsel, molecule
-    atomsel = atomsel.atomsel
+from vmd import atomsel
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -51,10 +43,10 @@ class DihedralAnalyzer(Analyzer):
         self.a4 = a4
 
         if not (self.a1 or self.a2 or self.a3 or self.a4):
-            self.a1 = raw_input("What's the first atom selection? > ")
-            self.a2 = raw_input("What's the second atom selection? > ")
-            self.a3 = raw_input("What's the third atom selection? > ")
-            self.a4 = raw_input("What's the fourth atom selection? > ")
+            self.a1 = input("What's the first atom selection? > ")
+            self.a2 = input("What's the second atom selection? > ")
+            self.a3 = input("What's the third atom selection? > ")
+            self.a4 = input("What's the fourth atom selection? > ")
 
     #==========================================================================
 
@@ -78,7 +70,7 @@ class DihedralAnalyzer(Analyzer):
 
         if not isinstance(trajset, TrajectorySet):
             raise ValueError("Not a trajectory set")
-        
+
         data = []
         for rep in trajset.trajectories:
             sel1 = atomsel(self.a1, molid=int(rep))

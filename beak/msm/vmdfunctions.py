@@ -1,14 +1,4 @@
-import math
-import molecule
-import molrep
-import numpy as np
-import trans
-import vmdnumpy
-from atomsel import atomsel
-from glob import glob
-from msmbuilder.msm import MarkovStateModel
-from msmbuilder.tpt import hub_scores
-from VMD import evaltcl, graphics
+from vmd import atomsel
 
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #                        ALL PURPOSE METHODS                                 +

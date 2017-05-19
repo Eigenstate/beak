@@ -9,7 +9,6 @@ import h5py
 import numpy as np
 from msmbuilder.msm import MarkovStateModel
 from vmd import atomsel, molecule
-atomsel = atomsel.atomsel
 
 #==============================================================================
 

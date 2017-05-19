@@ -7,17 +7,7 @@ import numpy as np
 import os
 from glob import glob
 from msmbuilder.tpt import hub_scores, top_path, net_fluxes
-
-try:
-    from vmd import *
-    atomsel = atomsel.atomsel
-except:
-    import vmd
-    from atomsel import atomsel
-    from VMD import evaltcl
-    import graphics
-    import molecule, molrep
-    import vmdnumpy
+from vmd import atomsel, evaltcl, graphics, molecule, molrep, vmdnumpy
 
 #==========================================================================
 

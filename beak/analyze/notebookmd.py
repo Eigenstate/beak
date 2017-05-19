@@ -1,12 +1,6 @@
 # These are useful python functions that I commonly use in notebooks
 from glob import glob
-try:
-    import vmd, molecule
-    import vmdnumpy
-    from atomsel import atomsel
-except:
-    from vmd import atomsel, molecule, vmdnumpy
-    atomsel = atomsel.atomsel
+from vmd import atomsel, molecule, vmdnumpy
 
 import numpy
 import pandas as pd

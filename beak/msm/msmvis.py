@@ -2,29 +2,7 @@
 Contains methods for generally visualizing MSMs that are
 loaded into DensitySamplers, usually
 """
-import matplotlib
-matplotlib.use("TkAgg")
-from matplotlib import pyplot as plt
-import msmexplorer as msme
-import networkx as nx
-import numpy as np
-import os
-
-import sys
-from subprocess import PIPE, Popen
-from threading import Thread
-from queue import Queue, Empty # Python 3 queue
-
-try:
-    from vmd import molecule, molrep, vmdnumpy, display, atomsel
-    atomsel = atomsel.atomsel
-except:
-    import vmd
-    import molecule
-    import molrep
-    import vmdnumpy
-    import display
-    from atomsel import atomsel
+from vmd import molecule, atomsel
 
 #==============================================================================
 

@@ -23,16 +23,8 @@ from __future__ import print_function
 from . import Analyzer
 
 import numpy as np
-from matplotlib import pyplot as plt
 from math import sqrt
-
-try:
-    import vmd
-    from atomsel import atomsel
-    import Molecule
-except:
-    from vmd import atomsel, Molecule
-    atomsel = atomsel.atomsel
+from vmd import atomsel, Molecule
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -63,8 +55,8 @@ class MinDistanceAnalyzer(Analyzer):
         self.sel1 = selection1
         self.sel2 = selection2
         if (not self.sel1) or (not self.sel2):
-            self.sel1 = raw_input("What's the first atom selection? > ")
-            self.sel2 = raw_input("What's the second atom selection? > ")
+            self.sel1 = input("What's the first atom selection? > ")
+            self.sel2 = input("What's the second atom selection? > ")
 
     #==========================================================================
 
