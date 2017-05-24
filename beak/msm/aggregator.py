@@ -7,9 +7,10 @@ import os
 import sys
 import numpy as np
 
+from beak.msm import utils
 from Dabble import VmdSilencer
 from gridData import Grid
-from beak.msm import utils
+from pickle import dump
 from vmd import atomsel, molecule, vmdnumpy
 
 
@@ -391,18 +392,14 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
                 sys.stdout.flush()
                 self._process_traj(traj)
 
-        with open(os.path.join(outdir, "means"), 'w') as meansfile:
-            for label, hist in self.grids.items():
-                den = Grid(hist[0], edges=hist[1], origin=[0., 0., 0.])
-                den /= float(self.counts[label])
-                den.export(os.path.join(outdir, "%s.dx" % label),
-                           file_format="dx")
+        for label, hist in self.grids.items():
+            den = Grid(hist[0], edges=hist[1], origin=[0., 0., 0.])
+            den /= float(self.counts[label])
+            den.export(os.path.join(outdir, "%s.dx" % label),
+                       file_format="dx")
+            self.means[label] /= float(self.counts[label])
 
-                mean = np.mean(self.means[label] / float(self.counts[label]),
-                               axis=0)
-                meansfile.write("%s\t%s\n" % (label, mean))
-                meansfile.flush()
-
+        dump(self.means, open(os.path.join(outdir, "means.pkl"), 'w'))
 
     #==========================================================================
 
