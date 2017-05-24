@@ -5,6 +5,7 @@ from __future__ import print_function
 import os
 import numpy as np
 import random
+import re
 import sys
 import time
 from configparser import RawConfigParser
@@ -425,6 +426,7 @@ class DensitySampler(object):
         # List all of the filenames so we can look them up later
         self.molids = {}
         self._load_densities()
+        self._load_means()
 
         # Find and load the msm, and clusters, and tics
         self.msmname = kwargs.get("msm")
@@ -480,6 +482,20 @@ class DensitySampler(object):
                     % (molid, molrep.num(molid)-1, 0))
             molrep.addrep(molid, style="Isosurface 0.05 0 0 1 1",
                           color="ColorID %d" % color)
+
+    #==========================================================================
+
+    def _load_means(self):
+        """
+        Loads means file with center coordinate of each cluster
+        """
+        self.means = {}
+        reg = re.compile(r"\[(.*)\]")
+
+        with open(os.path.join(self.clustdir, "means")) as meansfile:
+            for line in meansfile:
+                coords = [float(_) for _ in reg.findall(line)[0].split()]
+                self.means[line.split()[0]] = np.asarray(coords)
 
     #==========================================================================
 
@@ -627,4 +643,14 @@ class DensitySampler(object):
 
     #==========================================================================
 
+    def closest_to(self, coords):
+        """
+        Returns the clusters sorted in order of closeness to the
+        given coordinates
+        """
+        return sorted(self.means,
+                      key=lambda k: np.sqrt(np.sum((coords-self.means[k])**2))
+                     )
+
+    #==========================================================================
 
