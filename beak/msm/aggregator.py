@@ -10,9 +10,7 @@ import numpy as np
 from beak.msm import utils
 from Dabble import VmdSilencer
 from gridData import Grid
-from pickle import dump
 from vmd import atomsel, molecule, vmdnumpy
-
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #              Cluster means and most representative structure                #
@@ -399,7 +397,7 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
                        file_format="dx")
             self.means[label] /= float(self.counts[label])
 
-        dump(self.means, open(os.path.join(outdir, "means.pkl"), 'w'))
+        utils.dump(self.means, os.path.join(outdir, "means.pkl"))
 
     #==========================================================================
 
