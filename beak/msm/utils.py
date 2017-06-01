@@ -225,6 +225,14 @@ def load(filename):
 
 #==============================================================================
 
+def dump(thing, filename):
+    """
+    Provide load and dump together for simplicity
+    """
+    return pickle.dump(thing, open(filename, 'wb'))
+
+#==============================================================================
+
 def get_equivalent_clusters(label, clust1, clust2):
     """
     Returns equivalent cluster(s) between MSMs.
