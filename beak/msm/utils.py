@@ -8,6 +8,7 @@ import pickle
 import h5py
 import numpy as np
 from msmbuilder.msm import MarkovStateModel
+from msmbuilder.tpt import mfpts
 from vmd import atomsel, molecule
 
 #==============================================================================
@@ -268,5 +269,45 @@ def generate_truelabeled_msm(truelabels, length, lag):
 
     msm.fit([t[:length] for t in truelabels])
     return msm
+
+#==============================================================================
+
+def get_rmsd_to(meansfile, coords):
+    """
+    Returns the RMSD from each cluster in meansfile to the given
+    atom selection.
+
+    Args:
+        meansfile (str): Path to pickled cluster means object
+        coords (ndarray natoms x 3): Coordinates to get RMSD to
+
+    Returns:
+        (dict str->float): Cluster label and RMSD to it
+    """
+    rmsds = {}
+    means = load(meansfile)
+    for cl, dat in means.items():
+        if len(dat) != len(coords):
+            raise ValueError("Different natoms between cluster mean and sel!")
+        rmsds[cl] = np.sqrt(np.mean(np.square(dat-coords)))
+    return rmsds
+
+#==============================================================================
+
+def get_mfpt_from_solvent(msm, sinks):
+    """
+    Gets the mean first passage time from the identified solvent cluster (based
+    on population) to the sinks. Returns whichever passage time is fastest to
+    the sinks for each cluster in msm. Uses 10ns for lag time in MSM.
+
+    Args:
+        msm (MarkovStateModel): The MSM to compute on
+        sinks (list of int): Cluster labels for bound states
+
+    Returns:
+        Fastest time to get from solvent to any cluster in sinks
+    """
+    data = mfpts(msm, sinks=None)[:][sinks]
+    return np.min(data, axis=0)
 
 #==============================================================================

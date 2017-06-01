@@ -114,8 +114,8 @@ class Grapher(object):
         """
 
         graph = nx.Graph(self.msm.transmat_)
-        node_size = np.abs(1./np.log([i/sum(self.msm.populations_) \
-                                   for i in self.msm.populations_]))
+        node_size = np.log(self.msm.populations_)
+        node_size = [i-min(node_size)+5 for i in node_size]
         # Decrease size of solvent cluster
         #node_size[self.solvent] = sorted(node_size)[-2]
 
