@@ -8,6 +8,7 @@ import sys
 import numpy as np
 
 from beak.msm import utils
+from configparser import RawConfigParser
 from Dabble import VmdSilencer
 from gridData import Grid
 from vmd import atomsel, molecule, vmdnumpy
@@ -252,20 +253,45 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
     """
     #==========================================================================
 
-    def __init__(self, prodfiles, clusters, config, **kwargs):
+    def __init__(self, prodfiles, clusters, **kwargs):
         """
         Args:
             trajfiles (list of str): Trajectory files
             clusters (list of ndarray): Cluster data
-            config (ConfigParser): Config file with other system information
+            config (ConfigParser): Config file with other system information, will
+                read info from this if possible
             maxframes (list of int): Number of frames to read from each file
             topology (str): Single topology to use for all frames
+            dimensions (list of 3 floats): System box size
+            ligands (list of str): Ligand residue names
+            reference (str): Path to reference structure for alignment
+            rootdir (str): Root directory containing files etc
+            alignsel (str): String for alignment on reference structure
         """
         self.prodfiles = prodfiles
         self.clusters = clusters
-        self.dimensions = [float(d) for d in config["dabble"]["dimensions"].split(',')]
-        self.lignames = config["system"]["ligands"].split(',')
-        self.rootdir = config["system"]["rootdir"]
+
+        if kwargs.get("config") is not None:
+            if isinstance(kwargs.get("config"), str):
+                config = RawConfigParser()
+                config.read(kwargs.get("config"))
+            else:
+                config = kwargs.get("config")
+            self.dimensions = [float(d) for d in config["dabble"]["dimensions"].split(',')]
+            self.lignames = config["system"]["ligands"].split(',')
+            self.rootdir = config["system"]["rootdir"]
+            refname = config["system"]["reference"]
+            self.refsel = config["system"]["refsel"]
+            # For backwards / psf compatibility
+            self.psfsel = config["system"]["canonical_sel"]
+        else:
+            self.dimensions = kwargs.get("dimensions")
+            self.lignames = kwargs.get("ligands")
+            self.rootdir = kwargs.get("rootdir")
+            refname = kwargs.get("reference")
+            self.refsel = kwargs.get("alignsel")
+            self.psfsel = kwargs.get("alignsel")
+
 
         # Precalculate box edges
         self.ranges = [[-r/2., r/2.] for r in self.dimensions]
@@ -278,7 +304,6 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
         self.topology = kwargs.get("topology", None)
 
         # Load reference structure
-        refname = config["system"]["reference"]
         if "prmtop" in refname:
             self.refid = molecule.load("parm7", refname,
                                        "crdbox", refname.replace("prmtop", "inpcrd"))
@@ -297,10 +322,7 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
         if not len(self.prodfiles):
             raise ValueError("No trajectory files to process")
 
-        self.refsel = config["system"]["refsel"]
         self.aselref = atomsel(self.refsel, molid=self.refid)
-        # For backwards / psf compatibility
-        self.psfsel = config["system"]["canonical_sel"]
 
     #==========================================================================
 
