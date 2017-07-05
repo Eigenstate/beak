@@ -183,7 +183,7 @@ def align(molid, refid, refsel):
 
 #==============================================================================
 
-def get_prodfiles(generation, rootdir, new=False):
+def get_prodfiles(generation, rootdir, new=False, equilibration=False):
     """
     Gets the sorted list of all production files for a given adaptive
     sampling run. Supports legacy non-stripped and non-equilibrated
@@ -197,20 +197,16 @@ def get_prodfiles(generation, rootdir, new=False):
     Returns:
         (list of str): Production files, inorder
     """
+    prefix = "Eq1" if equilibration else "Eq6"
+
     prodfiles = []
     for gen in range(generation if new else 1, generation+1):
         rpath = os.path.join(rootdir, "production", str(gen), "*")
-        pfs = glob(os.path.join(rpath, "Reimaged_strip_Eq1*.nc"))
+        pfs = glob(os.path.join(rpath, "Reimaged_strip_%s*.nc" % prefix))
 
         # Fallpack to previous non-stripped reimaging
         # Fallback again to even older non-equilibration reimaging
-        if not len(pfs):
-            pfs = glob(os.path.join(rpath, "Reimaged_strip_Eq6*.nc"))
-        if not len(pfs):
-            pfs = glob(os.path.join(rpath, "Reimaged_Eq1*.nc"))
-        if not len(pfs):
-            pfs = glob(os.path.join(rpath, "Reimaged_Eq6*.nc"))
-
+        pfs = glob(os.path.join(rpath, "Reimaged_%s*.nc" % prefix))
         prodfiles.extend(sorted(pfs, key=lambda x: int(x.split('/')[-2])))
 
     return prodfiles
@@ -261,6 +257,8 @@ def get_equivalent_clusters(label, clust1, clust2):
 def generate_truelabeled_msm(truelabels, length, lag):
     """
     Generates a MSM of given length with the labelled data
+    Don't forget to truncate the amount of label data to match
+    the actual number of production files!
 
     Args:
         truelabels (list of ndarray): Cluster labels
