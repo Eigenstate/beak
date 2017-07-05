@@ -8,9 +8,11 @@ import sys
 import numpy as np
 
 from beak.msm import utils
-from configparser import RawConfigParser
 from Dabble import VmdSilencer
 from gridData import Grid
+from multiprocessing import Pool
+from threading import Thread, Lock
+from queue import Queue
 from vmd import atomsel, molecule, vmdnumpy
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -241,88 +243,48 @@ def save_cluster_centers(prodfiles, clust, msm, ligands, outdir, topology):
 #                            Cluster densities                                #
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
+class DensityWorker(Thread):
     """
-    Obtains cluster locations as a density map. Aims to be memory efficient
-    and as fast as possible by interating through trajectories only once,
-    loading only one at a time.
+    Actually does the work for cluster density. A gather operation pulls
+    a bunch of these together.
 
     Attributes:
         grids (dict int->Grid): Densities for each cluster, indexed by label
         counts (dict int->int): Number of times each cluster was observed
+        means (dict int->ndarray): Mean coordinate of each cluster
     """
+
     #==========================================================================
 
-    def __init__(self, prodfiles, clusters, **kwargs):
-        """
-        Args:
-            trajfiles (list of str): Trajectory files
-            clusters (list of ndarray): Cluster data
-            config (ConfigParser): Config file with other system information, will
-                read info from this if possible
-            maxframes (list of int): Number of frames to read from each file
-            topology (str): Single topology to use for all frames
-            dimensions (list of 3 floats): System box size
-            ligands (list of str): Ligand residue names
-            reference (str): Path to reference structure for alignment
-            rootdir (str): Root directory containing files etc
-            alignsel (str): String for alignment on reference structure
-        """
-        self.prodfiles = prodfiles
-        self.clusters = clusters
-
-        if kwargs.get("config") is not None:
-            if isinstance(kwargs.get("config"), str):
-                config = RawConfigParser()
-                config.read(kwargs.get("config"))
-            else:
-                config = kwargs.get("config")
-            self.dimensions = [float(d) for d in config["dabble"]["dimensions"].split(',')]
-            self.lignames = config["system"]["ligands"].split(',')
-            self.rootdir = config["system"]["rootdir"]
-            refname = config["system"]["reference"]
-            self.refsel = config["system"]["refsel"]
-            # For backwards / psf compatibility
-            self.psfsel = config["system"]["canonical_sel"]
-        else:
-            self.dimensions = kwargs.get("dimensions")
-            self.lignames = kwargs.get("ligands")
-            self.rootdir = kwargs.get("rootdir")
-            refname = kwargs.get("reference")
-            self.refsel = kwargs.get("alignsel")
-            self.psfsel = kwargs.get("alignsel")
-
-
-        # Precalculate box edges
-        self.ranges = [[-r/2., r/2.] for r in self.dimensions]
+    def __init__(self, thread_id, inqueue,
+                 means_q, densities_q, counts_q, **kwargs):
+        super(DensityWorker, self).__init__()
+        self.id = thread_id
         self.grids = {}
         self.counts = {}
         self.means = {}
+        self.clusters = kwargs.get("clusters")
 
-        # Handle optional arguments
-        self.maxframes = kwargs.get("maxframes", None)
-        self.topology = kwargs.get("topology", None)
+        self.kwargs = kwargs
+        self.inqueue = inqueue
+        self.means_q = means_q
+        self.densities_q = densities_q
+        self.counts_q = counts_q
+        self.lock = kwargs.get("atomsel_lock")
 
-        # Load reference structure
-        if "prmtop" in refname:
-            self.refid = molecule.load("parm7", refname,
-                                       "crdbox", refname.replace("prmtop", "inpcrd"))
-        elif "psf" in refname:
-            self.refid = molecule.load("psf", refname,
-                                       "pdb", refname.replace("psf", "pdb"))
-        else:
-            raise ValueError("Unknown format of reference file %s" % refname)
+    #==========================================================================
 
-        # Sanity check that saved structure could actually be read
-        if not molecule.exists(self.refid):
-            raise ValueError("Couldn't load reference structure %s"
-                             % refname)
+    def run(self):
+        while not self.inqueue.empty():
+            trajidx, trajfile = self.inqueue.get()
+            print("%d: Got trajidx %d" % (self.id, trajidx))
+            sys.stdout.flush()
+            self._process_traj(trajidx, trajfile)
+            self.inqueue.task_done()
 
-        # Sanity check there are actually production files to process
-        if not len(self.prodfiles):
-            raise ValueError("No trajectory files to process")
-
-        self.aselref = atomsel(self.refsel, molid=self.refid)
+        self.means_q.put(self.means)
+        self.densities_q.put(self.grids)
+        self.counts_q.put(self.counts)
 
     #==========================================================================
 
@@ -331,8 +293,8 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
         Updates the grid with a given label and data
         """
         binned, edges = np.histogramdd(data,
-                                       bins=self.dimensions,
-                                       range=self.ranges,
+                                       bins=self.kwargs.get("dimensions"),
+                                       range=self.kwargs.get("ranges"),
                                        normed=False)
 
 
@@ -347,7 +309,7 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
 
     #==========================================================================
 
-    def _process_traj(self, trajfile):
+    def _process_traj(self, trajidx, trajfile):
         """
         Updates the densities so far from the given trajectory and cluster
         assignments.
@@ -356,23 +318,27 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
             trajfile (str): Trajectory file to process
         """
         # Load the trajectory
-        assert trajfile in self.prodfiles
-        trajidx = self.prodfiles.index(trajfile)
-        maxframe = -1 if self.maxframes is None else self.maxframes[trajidx]-1
+        if self.kwargs.get("maxframes"):
+            maxframe = self.kwargs.get("maxframes")[trajidx]-1
+        else:
+            maxframe = -1
 
-        molid = utils.load_trajectory(trajfile, self.rootdir,
-                                      aselref=self.aselref,
-                                      psfref=self.psfsel,
-                                      prmref=self.refsel,
+        molid = utils.load_trajectory(trajfile, self.kwargs.get("rootdir"),
+                                      aselref=self.kwargs.get("aselref"),
+                                      psfref=self.kwargs.get("psfsel"),
+                                      prmref=self.kwargs.get("refsel"),
                                       frame=(0, maxframe),
-                                      topology=self.topology)
+                                      topology=self.kwargs.get("topology"),
+                                      lock=self.lock)
 
         # Get residue number for each ligand
-        ligids = sorted(set(atomsel("resname %s" % " ".join(self.lignames),
+        self.lock.acquire()
+        ligids = sorted(set(atomsel("resname %s" % " ".join(self.kwargs.get("lignames")),
                                     molid=molid).get("residue")))
         masks = [vmdnumpy.atomselect(molid, 0,
                                      "noh and same fragment as residue %d" % l)
                  for l in ligids]
+        self.lock.release()
 
         # DEBUG print out nframes
         if len(self.clusters[trajidx*len(ligids)]) != molecule.numframes(molid):
@@ -394,6 +360,93 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
 
         molecule.delete(molid)
 
+#==========================================================================
+
+class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
+    """
+    Obtains cluster locations as a density map. Aims to be memory efficient
+    and as fast as possible by interating through trajectories only once,
+    loading only one at a time.
+    """
+    #==========================================================================
+
+    def __init__(self, prodfiles, clusters, config, **kwargs):
+        """
+        Args:
+            trajfiles (list of str): Trajectory files
+            clusters (list of ndarray): Cluster data
+            config (ConfigParser): Config file with other system information
+            maxframes (list of int): Number of frames to read from each file
+            topology (str): Single topology to use for all frames
+        """
+        # Sanity check there are actually production files to process
+        self.prodfiles = prodfiles
+        if not len(self.prodfiles):
+            raise ValueError("No trajectory files to process")
+
+        self.means = None
+        self.counts = None
+        self.densities = None
+        self.outdir = "unset"
+
+        # Handle optional arguments
+        self.kwargs = kwargs
+
+        # Precalculate box edges
+        self.kwargs["clusters"] = clusters
+        self.kwargs["dimensions"] = [float(d) for d in config["dabble"]["dimensions"].split(',')]
+        self.kwargs["ranges"] = [[-r/2., r/2.] for r in self.kwargs["dimensions"]]
+
+        self.kwargs["lignames"] = config["system"]["ligands"].split(',')
+        self.kwargs["rootdir"] = config["system"]["rootdir"]
+
+        # Load reference structure
+        refname = config["system"]["reference"]
+        self.kwargs["refsel"] = config["system"]["refsel"]
+        self.kwargs["psfsel"] = config["system"]["canonical_sel"]
+
+        # Each thread needs its own reference structure
+        if "prmtop" in refname:
+            self.kwargs["refid"] = molecule.load("parm7", refname,
+                                                 "crdbox", refname.replace("prmtop",
+                                                                           "inpcrd"))
+        elif "psf" in refname:
+            self.kwargs["refid"] = molecule.load("psf", refname,
+                                                 "pdb", refname.replace("psf", "pdb"))
+        else:
+            raise ValueError("Unknown format of reference file %s" % refname)
+        self.kwargs["aselref"] = atomsel(self.kwargs["refsel"],
+                                         molid=self.kwargs.get("refid"))
+
+        # Shared lock for atom selection
+        self.kwargs["atomsel_lock"] = Lock()
+
+    #==========================================================================
+
+    def sum_queue(self, q_sum): #pylint: disable=no-self-use
+        """
+        Sums the values in a queue, as the data is a dictionary
+        """
+        thedata = {}
+        while not q_sum.empty():
+            data = q_sum.get()
+            for k, v in data.items():
+                if thedata.get(k) is not None:
+                    thedata[k] += v
+                else:
+                    thedata[k] = v
+        return thedata
+
+    #==========================================================================
+
+    def save_single_file(self, label):
+        hist = self.densities[label]
+        den = Grid(hist[0], edges=hist[1], origin=[0., 0., 0.])
+        den /= float(self.counts[label])
+        den.export(os.path.join(self.outdir, "%s.dx" % label),
+                   file_format="dx")
+        self.means[label] /= float(self.counts[label])
+
     #==========================================================================
 
     def save_densities(self, outdir):
@@ -406,20 +459,41 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
         Args:
             outdir (str): Output directory in which to put dx map files
         """
-        with VmdSilencer(output=os.path.join(outdir, "vmd.log")):
-            for i, traj in enumerate(self.prodfiles):
-                print("  On trajfile %d of %d" % (i, len(self.prodfiles)))
-                sys.stdout.flush()
-                self._process_traj(traj)
 
-        for label, hist in self.grids.items():
-            den = Grid(hist[0], edges=hist[1], origin=[0., 0., 0.])
-            den /= float(self.counts[label])
-            den.export(os.path.join(outdir, "%s.dx" % label),
-                       file_format="dx")
-            self.means[label] /= float(self.counts[label])
+        self.outdir = outdir
+        with VmdSilencer(output=os.path.join(self.outdir, "vmd.log")):
 
-        utils.dump(self.means, os.path.join(outdir, "means.pkl"))
+            # Add all production files to the queue
+            todos = Queue(maxsize=len(self.prodfiles))
+            for i, f in enumerate(self.prodfiles): todos.put_nowait((i, f))
+            print("Evaluating %d prodfiles" % len(self.prodfiles))
+            sys.stdout.flush()
+
+            means_q = Queue()
+            density_q = Queue()
+            counts_q = Queue()
+
+            # Create the appropriate number of workers
+            for _ in range(int(os.environ.get("SLURM_NTASKS", 4))):
+                w = DensityWorker(_, todos, means_q, density_q, counts_q,
+                                  **self.kwargs)
+                w.daemon = True
+                w.start()
+
+            # Wait until entire queue is processed
+            todos.join()
+
+            # Gather up all data
+            self.means = self.sum_queue(means_q)
+            self.densities = self.sum_queue(density_q)
+            self.counts = self.sum_queue(counts_q)
+
+        # Delete things that aren't pickled
+        del self.kwargs
+
+        pool = Pool(int(os.environ.get("SLURM_NTASKS", 4)))
+        pool.map(self.save_single_file, self.densities.keys())
+        utils.dump(self.means, os.path.join(self.outdir, "means.pkl"))
 
     #==========================================================================
 

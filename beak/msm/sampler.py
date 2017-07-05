@@ -406,7 +406,7 @@ class DensitySampler(object):
         if not self.prodfiles:
             self.prodfiles = utils.get_prodfiles(self.generation, self.dir,
                                                  self.config["model"].get("include_equilibration",
-                                                                          "False").lower() == "True")
+                                                                          "False").lower() == "true")
 
         # Load reference structure for later alignment
         # Hide it

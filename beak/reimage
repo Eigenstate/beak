@@ -18,9 +18,9 @@ if __name__ == "__main__":
     parser.add_argument("--every", dest="skip", metavar="<N>",
                         type=int, default=1, help="Save every Nth frame. Defaults"
                         " to all frames")
-    parser.add_argument("--equilibration", dest="alleq", default=True,
+    parser.add_argument("--equilibration", dest="alleq", default=False,
                         action="store_true", help="Include equilibration trajectories "
-                        "in final reimaged file. Defaults to True.")
+                        "in final reimaged file. Defaults to False.")
     parser.add_argument("--align", dest="align", default=False,
                         action="store_true", help="Align frames to input coordinates. "
                         "Defaults to false.")

@@ -121,6 +121,7 @@ def load_trajectory(filename, rootdir, **kwargs):
         topology (str): Manual topology choice to use, or None for autodetect
         molid (int): Molecule ID to load trajectory into, or None for new molid
         skip (int): Stride to load, defaults to 1
+        lock (lock): Lock to hold to do alignment
 
     Returns:
         (int): VMD molecule ID of loaded and aligned trajectory
@@ -140,6 +141,7 @@ def load_trajectory(filename, rootdir, **kwargs):
     prmref = kwargs.get("prmref", None)
     frame = kwargs.get("frame", None)
     skip = kwargs.get("skip", 1)
+    lock = kwargs.get("lock", None)
 
     # Load the trajectory in
     fmt = get_trajectory_format(filename)
@@ -154,6 +156,8 @@ def load_trajectory(filename, rootdir, **kwargs):
         raise ValueError("I don't understand loading frames: %s" % frame)
 
     # Align, if desired
+    if lock is not None:
+        lock.acquire()
     if aselref is None:
         return mid
     framsel = atomsel(psfref if "psf" in topology else prmref, molid=mid)
@@ -161,6 +165,8 @@ def load_trajectory(filename, rootdir, **kwargs):
         molecule.set_frame(mid, frame)
         framsel.update()
         atomsel("all", molid=mid, frame=frame).move(framsel.fit(aselref))
+    if lock is not None:
+        lock.release()
     return mid
 
 #==============================================================================
