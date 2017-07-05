@@ -5,7 +5,6 @@ from __future__ import print_function
 import os
 import numpy as np
 import random
-import re
 import sys
 import time
 from configparser import RawConfigParser
@@ -405,7 +404,9 @@ class DensitySampler(object):
         self.clustdir = kwargs.get("clustdir")
         self.prodfiles = kwargs.get("prodfiles")
         if not self.prodfiles:
-            self.prodfiles = utils.get_prodfiles(self.generation, self.dir)
+            self.prodfiles = utils.get_prodfiles(self.generation, self.dir,
+                                                 self.config["model"].get("include_equilibration",
+                                                                          "False").lower() == "True")
 
         # Load reference structure for later alignment
         # Hide it
@@ -430,7 +431,10 @@ class DensitySampler(object):
 
         # Find and load the msm, and clusters, and tics
         self.msmname = kwargs.get("msm")
-        self.scores = kwargs.get("scores")
+        if os.path.isfile(kwargs.get("scores")):
+            self.scores = load(kwargs.get("scores"))
+        else:
+            self.scores = kwargs.get("scores")
         self.msm = utils.load(self.msmname)
         self.clusters = utils.load(kwargs.get("clusters"))
         self.tica = None
@@ -489,13 +493,8 @@ class DensitySampler(object):
         """
         Loads means file with center coordinate of each cluster
         """
-        self.means = {}
-        reg = re.compile(r"\[(.*)\]")
-
-        with open(os.path.join(self.clustdir, "means")) as meansfile:
-            for line in meansfile:
-                coords = [float(_) for _ in reg.findall(line)[0].split()]
-                self.means[line.split()[0]] = np.asarray(coords)
+        if os.path.isfile(os.path.join(self.clustdir, "means.pkl")):
+            self.means = utils.load(os.path.join(self.clustdir, "means.pkl"))
 
     #==========================================================================
 
@@ -524,11 +523,11 @@ class DensitySampler(object):
         else:
             topology = self.topology
 
-        availtopos = [ molecule.get_filenames(_) for _ in self.molids[cluster] ]
-        if topology in availtopos:
-            molid = self.molids[availtopos.index(topology)]
-        else:
-            molid = None
+        molid = None
+        for mol in self.molids[cluster]:
+            if topology in molecule.get_filenames(mol):
+                molid = mol
+                break
 
         # Load and align this frame
         m2 = utils.load_trajectory(filename, self.dir,
@@ -554,6 +553,8 @@ class DensitySampler(object):
                       color="User", material="Opaque")
         molrep.set_colorupdate(m2, molrep.num(m2)-1, True)
         molrep.set_scaleminmax(m2, molrep.num(m2)-1, 0., 1.)
+        evaltcl("mol drawframes %d %d 0:%d" % (m2, molrep.num(m2)-1,
+                                               molecule.numframes(m2)))
 
         if self.tica is None:
             molrep.modrep(m2, molrep.num(m2)-1, color="ColorID %d" % color)
