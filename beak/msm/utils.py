@@ -199,6 +199,7 @@ def get_prodfiles(generation, rootdir, new=False, equilibration=False):
         generation (int): Latest generation to load
         rootdir (str): Root directory for sampling run
         new (bool): Only return production files from this generation, if True
+        equilibration (bool): If equilibrated trajectory should be included
 
     Returns:
         (list of str): Production files, inorder
@@ -208,11 +209,11 @@ def get_prodfiles(generation, rootdir, new=False, equilibration=False):
     prodfiles = []
     for gen in range(generation if new else 1, generation+1):
         rpath = os.path.join(rootdir, "production", str(gen), "*")
-        pfs = glob(os.path.join(rpath, "Reimaged_strip_%s*.nc" % prefix))
+        pfs = glob(os.path.join(rpath, "Reimaged_strip_%s_*.nc" % prefix))
 
         # Fallpack to previous non-stripped reimaging
-        # Fallback again to even older non-equilibration reimaging
-        pfs = glob(os.path.join(rpath, "Reimaged_%s*.nc" % prefix))
+        if not len(pfs):
+            pfs = glob(os.path.join(rpath, "Reimaged_%s_*.nc" % prefix))
         prodfiles.extend(sorted(pfs, key=lambda x: int(x.split('/')[-2])))
 
     return prodfiles
