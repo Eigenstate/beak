@@ -64,26 +64,36 @@ def check_empty(filename):
 
 #==============================================================================
 
-def get_protein_residues(psf):
+def get_protein_residues(topology):
     """
     Gets the prmtop ids of the resids of the first chain
     of the protein.
 
     Args:
-        psf (str): Path to the psf file
+        topology(str): Path to the input topology file
     Returns: (str) String of residues for anchor
     """
-    molid = molecule.load('psf', psf)
-    ace = min(atomsel('resname ACE').get('residue'))
-    nma = min(atomsel('resname NMA').get('residue'))
-    return "%d-%d" % (ace, nma)
-    fragment = set(atomsel('pfrag 1').get('fragment')).pop()
-    print(set(atomsel('fragment %d' % fragment).get('resname')))
-    residues = [x for x in set(atomsel('fragment %d' % fragment).get('residue'))]
-    #residues = [ x+1 for x in set(atomsel('protein or resname ACE NMA').get('residue')) ]
-    residues.sort()
+    if topology.split(".")[-1] == "prmtop":
+        molid = molecule.load('parm7', topology)
+        field = "resid"
+    else:
+        molid = molecule.load('psf', topology)
+        field = "residue"
+
+    ace = min(atomsel('resname ACE', molid).get(field))
+    nma = min(atomsel('resname NMA', molid).get(field))
+
     molecule.delete(molid)
-    return group_output(residues)
+    return "%d-%d" % (ace, nma)
+
+    # LEGACY
+    #fragment = set(atomsel('pfrag 1').get('fragment')).pop()
+    #print(set(atomsel('fragment %d' % fragment).get('resname')))
+    #residues = [x for x in set(atomsel('fragment %d' % fragment).get('residue'))]
+    #residues = [ x+1 for x in set(atomsel('protein or resname ACE NMA').get('residue')) ]
+    #residues.sort()
+    #molecule.delete(molid)
+    #return group_output(residues)
 
 #==============================================================================
 
@@ -128,7 +138,7 @@ def reimage(psf, revision, skip, alleq, align, stripmask=None):
 
 #==============================================================================
 
-def reimage_single_dir(psf, replicate, revision, skip, alleq, align,
+def reimage_single_dir(topology, replicate, revision, skip, alleq, align,
                        stripmask=None):
 
     # Make em strings
@@ -177,8 +187,9 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align,
     # Now write cpptraj input
     tempfile = open(os.path.join(proddir, "tempfile"), 'w')
 
+    topoprefix = ".".join(topology.split(".")[:-1])
     if align:
-        tempfile.write("reference %s parm %s [ref]\n" % (psf.replace("psf", "inpcrd"), psf))
+        tempfile.write("reference %s.inpcrd parm %s [ref]\n" % (topoprefix, topology))
 
     # equilibration written 8x more frequently so downsample
     if alleq:
@@ -194,7 +205,8 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align,
 
     # Last equilibration in
     if not check_empty(os.path.join(proddir, "Eq_6.nc")):
-        tempfile.write("trajin %s 1 last %d\n" % (os.path.join(proddir, "Eq_6.nc"), int(skip)*8))
+        tempfile.write("trajin %s 1 last %d\n" % (os.path.join(proddir, "Eq_6.nc"),
+                                                  int(skip)*8))
     else:
         prods = [] # Don't write out production files if no Eq_6 present
         ofile = ofile.replace("_to_%d_skip" % lastnum, "_to_Eq5_skip")
@@ -206,7 +218,7 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align,
         if not check_empty(p):
             tempfile.write("trajin %s\n" % p)
 
-    protein_residues = get_protein_residues(psf)
+    protein_residues = get_protein_residues(topology)
 
     tempfile.write("center origin (:%s)\n" % protein_residues)
     tempfile.write("image origin center\n")
@@ -216,14 +228,14 @@ def reimage_single_dir(psf, replicate, revision, skip, alleq, align,
 
     if stripmask is not None:
         ofile = ofile.replace("Reimaged_", "Reimaged_strip_")
-        tempfile.write("strip (%s) parmout %s\n"
-                       % (stripmask, psf.replace(".psf", "_stripped.prmtop")))
+        tempfile.write("strip (%s) parmout %s_stripped.prmtop\n"
+                       % (stripmask, topoprefix))
     tempfile.write("trajout %s offset %s\n" % (ofile, skip))
     tempfile.write("go\n")
     tempfile.close()
 
     return subprocess.call("%s/bin/cpptraj -p %s -i %s/tempfile" %
-                           (os.environ['AMBERHOME'], psf, proddir),
+                           (os.environ['AMBERHOME'], topology, proddir),
                            shell=True)
 
 #==============================================================================
