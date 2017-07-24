@@ -6,7 +6,9 @@ import os
 from glob import glob
 import pickle
 import h5py
+import random
 import numpy as np
+from configparser import RawConfigParser
 from msmbuilder.msm import MarkovStateModel
 from msmbuilder.tpt import mfpts
 from vmd import atomsel, molecule
@@ -105,7 +107,7 @@ def get_trajectory_format(filename):
 
 #==============================================================================
 
-def load_trajectory(filename, rootdir, **kwargs):
+def load_trajectory(filename, **kwargs):
     """
     Loads a trajectory with the correct topology and format based on
     the filename. Also aligns to the reference structure using the
@@ -113,35 +115,61 @@ def load_trajectory(filename, rootdir, **kwargs):
 
     Args:
         filename (str): The reimaged trajectory file to load
+        molid (int): Molecule ID to load trajectory into, or None for new molid
+        skip (int): Stride to load, defaults to 1
+        config (str): Path to configfile to parse for following args
+
+        For manually specifying many options:
         rootdir (str): Root directory of the sampling run
         aselref (atomsel): Reference atom selection to align to
         psfref (str): Atom selection strings for PSFs / normal resids
         prmref (str): Atom selection strings for prmtops / altered resids
         frame (int): Single frame to load, or None for all frames, or (beg,end)
         topology (str): Manual topology choice to use, or None for autodetect
-        molid (int): Molecule ID to load trajectory into, or None for new molid
-        skip (int): Stride to load, defaults to 1
-        lock (lock): Lock to hold to do alignment
 
     Returns:
         (int): VMD molecule ID of loaded and aligned trajectory
     """
-    # Load the topology
+    # Process options that wouldn't be in a config file
     topology = kwargs.get("topology", None)
-    if topology is None:
-        topology = get_topology(filename, rootdir)
-
-    if kwargs.get("molid") is None:
-        mid = molecule.load("psf" if "psf" in topology else "parm7", topology)
-    else:
-        mid = int(kwargs.get("molid"))
-
-    aselref = kwargs.get("aselref", None)
-    psfref = kwargs.get("psfref", None)
-    prmref = kwargs.get("prmref", None)
     frame = kwargs.get("frame", None)
     skip = kwargs.get("skip", 1)
-    lock = kwargs.get("lock", None)
+    if kwargs.get("molid") is None:
+        mid = molecule.load("psf" if "psf" in topology else "parm7", topology)
+
+    # Set up alignment stuff. Prefer to use config file
+    if kwargs.get("config"):
+        if isinstance(kwargs.get("config"), str):
+            config = RawConfigParser()
+            config.read(kwargs.get("config"))
+        elif isinstance(kwargs.get("config"), RawConfigParser):
+            config = kwargs.get("config")
+        else:
+            raise ValueError("%s is not a string or RawConfigParser"
+                             % kwargs.get("config"))
+        if topology is None:
+            topology = get_topology(filename,
+                                    rootdir=config["system"]["rootdir"])
+
+        # Load reference topology and get relevant atom selection
+        ref = config["system"]["reference"]
+        refid = molecule.load("parm7", ref,
+                              "crdbox", ref.replace("prmtop", "inpcrd"))
+        psfref = config["system"]["canonical_sel"]
+        prmref = config["system"]["refsel"]
+        aselref = atomsel(psfref if "psf" in topology else prmref,
+                          molid=refid)
+
+    else: # Legacy... delete TODO
+        if topology is None:
+            topology = get_topology(filename, kwargs.get("rootdir"))
+
+        else:
+            mid = int(kwargs.get("molid"))
+
+        aselref = kwargs.get("aselref", None)
+        psfref = kwargs.get("psfref", None)
+        prmref = kwargs.get("prmref", None)
 
     # Load the trajectory in
     fmt = get_trajectory_format(filename)
@@ -156,8 +184,6 @@ def load_trajectory(filename, rootdir, **kwargs):
         raise ValueError("I don't understand loading frames: %s" % frame)
 
     # Align, if desired
-    if lock is not None:
-        lock.acquire()
     if aselref is None:
         return mid
     framsel = atomsel(psfref if "psf" in topology else prmref, molid=mid)
@@ -165,8 +191,9 @@ def load_trajectory(filename, rootdir, **kwargs):
         molecule.set_frame(mid, frame)
         framsel.update()
         atomsel("all", molid=mid, frame=frame).move(framsel.fit(aselref))
-    if lock is not None:
-        lock.release()
+
+    if kwargs.get("config"): # Clean up reference molecule
+        molecule.delete(refid)
     return mid
 
 #==============================================================================
@@ -324,3 +351,32 @@ def get_mfpt_from_solvent(msm, sinks):
     return np.min(data, axis=0)
 
 #==============================================================================
+
+def get_frame(cluster, dataset, nligs):
+    """
+    Picks a frame corresponding to the given cluster.
+
+    Args:
+        cluster (int): The cluster to sample
+        dataset (list of ndarray): Clustered dataset
+        nligs (int): Number of ligands in the system
+
+    Returns:
+        (str, int, int): Path to the trajectory file and frame index
+            within that file corresponding to the given cluster, and
+            the index of the ligand belonging to the cluster
+    """
+    # Randomly choose a frame where a ligand is in this cluster
+    frames = {k:v for k, v in {i:np.ravel(np.where(c == cluster)) \
+              for i, c in enumerate(dataset)}.items() \
+              if len(v)}
+    clustindex = int(random.choice(list(frames.keys())))
+    frameindex = int(random.choice(frames[clustindex]))
+    fileindex = int(clustindex / nligs)
+
+    # Get the index of the ligand in the cluster
+    ligidx = clustindex % nligs
+
+    return (fileindex, frameindex, ligidx)
+
+#==========================================================================
