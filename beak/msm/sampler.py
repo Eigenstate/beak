@@ -307,10 +307,10 @@ class ClusterSampler(object):
             (dict int -> float): RMSD of each molid to cluster mean
         """
 
-        with open(os.path.join(self.dir, "clusters", str(self.generation), "rmsds")) as fn:
-            lines = fn.readlines()
+        #with open(os.path.join(self.dir, "clusters", str(self.generation), "rmsds")) as fn:
+        #    lines = fn.readlines()
 
-        rmsds = {int(x.split()[0].strip()): float(x.split()[1].strip()) for x in lines}
+        #rmsds = {int(x.split()[0].strip()): float(x.split()[1].strip()) for x in lines}
 
         for molname in sorted(glob(os.path.join(self.dir, "clusters",
                                                 str(self.generation), "*.mae")),
@@ -327,10 +327,10 @@ class ClusterSampler(object):
             molrep.set_scaleminmax(a, molrep.num(a)-1, 0, 2.)
 
             # Get per-atom rmsd
-            if self.rmsds is None:
-                self.rmsds = rmsds
+            #if self.rmsds is None:
+            #    self.rmsds = rmsds
 
-            atomsel("all", molid=a).set("user", self.rmsds[int(nam)])
+            #atomsel("all", molid=a).set("user", self.rmsds[int(nam)])
 
             molrep.delrep(a, 0)
             molrep.addrep(a, style="NewRibbons", material="Opaque",
@@ -388,6 +388,7 @@ class DensitySampler(object):
             clusters (str): Cluster data pickle path
             msm (str): MSM pickle path
             topology (str): One topology for all input files, for DESRES
+            load_clusters (bool): Whether clusters should be loaded
         """
         # Set visualization stuff
         evaltcl("color scale method BGR")
@@ -402,8 +403,8 @@ class DensitySampler(object):
 
         self.generation = kwargs.get("generation")
         self.clustdir = kwargs.get("clustdir")
-        self.prodfiles = kwargs.get("prodfiles")
-        if not self.prodfiles:
+        self.prodfiles = kwargs.get("prodfiles", None)
+        if self.prodfiles is None:
             self.prodfiles = utils.get_prodfiles(self.generation, self.dir,
                                                  self.config["model"].get("include_equilibration",
                                                                           "False").lower() == "true")
@@ -426,8 +427,10 @@ class DensitySampler(object):
 
         # List all of the filenames so we can look them up later
         self.molids = {}
-        self._load_densities()
-        self._load_means()
+
+        if kwargs.get("load_clusters", True):
+            self._load_densities()
+            self._load_means()
 
         # Find and load the msm, and clusters, and tics
         self.msmname = kwargs.get("msm")
