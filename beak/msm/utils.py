@@ -134,9 +134,6 @@ def load_trajectory(filename, **kwargs):
     topology = kwargs.get("topology", None)
     frame = kwargs.get("frame", None)
     skip = kwargs.get("skip", 1)
-    if kwargs.get("molid") is None:
-        mid = molecule.load("psf" if "psf" in topology else "parm7", topology)
-
     # Set up alignment stuff. Prefer to use config file
     if kwargs.get("config"):
         if isinstance(kwargs.get("config"), str):
@@ -170,6 +167,9 @@ def load_trajectory(filename, **kwargs):
         aselref = kwargs.get("aselref", None)
         psfref = kwargs.get("psfref", None)
         prmref = kwargs.get("prmref", None)
+
+    if kwargs.get("molid") is None:
+        mid = molecule.load("psf" if "psf" in topology else "parm7", topology)
 
     # Load the trajectory in
     fmt = get_trajectory_format(filename)
