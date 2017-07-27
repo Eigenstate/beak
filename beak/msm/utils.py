@@ -150,8 +150,15 @@ def load_trajectory(filename, **kwargs):
 
         # Load reference topology and get relevant atom selection
         ref = config["system"]["reference"]
-        refid = molecule.load("parm7", ref,
-                              "crdbox", ref.replace("prmtop", "inpcrd"))
+        if "psf" in ref:
+            refid = molecule.load("psf", ref,
+                                  "pdb", ref.replace("psf", "pdb"))
+        elif "prmtop" in ref:
+            refid = molecule.load("parm7", ref,
+                                  "crdbox", ref.replace("prmtop", "inpcrd"))
+        else:
+            raise ValueError("Unknown type of reference '%s'" % ref)
+
         psfref = config["system"]["canonical_sel"]
         prmref = config["system"]["refsel"]
         aselref = atomsel(psfref if "psf" in topology else prmref,
