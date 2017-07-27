@@ -360,7 +360,8 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
         trajidx = self.prodfiles.index(trajfile)
         maxframe = -1 if self.maxframes is None else self.maxframes[trajidx]-1
 
-        molid = utils.load_trajectory(trajfile, self.rootdir,
+        molid = utils.load_trajectory(trajfile,
+                                      rootdir=self.rootdir,
                                       aselref=self.aselref,
                                       psfref=self.psfsel,
                                       prmref=self.refsel,
