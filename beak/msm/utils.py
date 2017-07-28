@@ -168,15 +168,14 @@ def load_trajectory(filename, **kwargs):
         if topology is None:
             topology = get_topology(filename, kwargs.get("rootdir"))
 
-        else:
-            mid = int(kwargs.get("molid"))
-
         aselref = kwargs.get("aselref", None)
         psfref = kwargs.get("psfref", None)
         prmref = kwargs.get("prmref", None)
 
     if kwargs.get("molid") is None:
         mid = molecule.load("psf" if "psf" in topology else "parm7", topology)
+    else:
+        mid = int(kwargs.get("molid"))
 
     # Load the trajectory in
     fmt = get_trajectory_format(filename)
