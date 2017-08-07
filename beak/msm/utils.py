@@ -196,7 +196,13 @@ def load_trajectory(filename, **kwargs):
     for frame in range(molecule.numframes(mid)):
         molecule.set_frame(mid, frame)
         framsel.update()
-        atomsel("all", molid=mid, frame=frame).move(framsel.fit(aselref))
+        try:
+            atomsel("all", molid=mid, frame=frame).move(framsel.fit(aselref))
+        except ValueError:
+            print("Can't align the following molecules:\n%s\n\n%s"
+                  % (", ".join(molecule.get_filenames(mid)),
+                     ", ".join(molecule.get_filenames(refid))))
+            quit(1)
 
     if kwargs.get("config"): # Clean up reference molecule
         molecule.delete(refid)
