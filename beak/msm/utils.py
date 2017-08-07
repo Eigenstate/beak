@@ -153,16 +153,16 @@ def load_trajectory(filename, **kwargs):
         if "psf" in ref:
             refid = molecule.load("psf", ref,
                                   "pdb", ref.replace("psf", "pdb"))
+            aselref = atomsel(psfref, molid=refid)
         elif "prmtop" in ref:
             refid = molecule.load("parm7", ref,
                                   "crdbox", ref.replace("prmtop", "inpcrd"))
+            aselref = atomsel(prmref, molid=refid)
         else:
             raise ValueError("Unknown type of reference '%s'" % ref)
 
         psfref = config["system"]["canonical_sel"]
         prmref = config["system"]["refsel"]
-        aselref = atomsel(psfref if "psf" in topology else prmref,
-                          molid=refid)
 
     else: # Legacy... delete TODO
         if topology is None:
@@ -193,6 +193,7 @@ def load_trajectory(filename, **kwargs):
     if aselref is None:
         return mid
     framsel = atomsel(psfref if "psf" in topology else prmref, molid=mid)
+
     for frame in range(molecule.numframes(mid)):
         molecule.set_frame(mid, frame)
         framsel.update()
