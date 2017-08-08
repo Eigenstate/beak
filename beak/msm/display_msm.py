@@ -22,7 +22,8 @@ class Grapher(object):
         plt.ion()
         self.msm = utils.load(msmfile)
         #self.scores = utils.load(scores) if scores is not None else None
-        self.solvent = np.argmax(self.msm.populations_)
+#        self.solvent = np.argmax(self.msm.populations_)
+        self.solvent  = -1
         self.labels = list(self.msm.mapping_)
         self.nodes = {}
 
