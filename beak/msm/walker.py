@@ -39,7 +39,7 @@ class FakeMSM(object):
 class NaiveWalker(object):
     def __init__(self, msm, nsteps):
         self.graph = FakeMSM(msm.n_states_)
-        self.graph.transmat_ = np.copy(msm)
+        self.graph.transmat_ = np.copy(msm.transmat_)
         self.nsteps = nsteps
 
         self.start = msm.inverse_transform(np.argsort(msm.populations_))[0][:3]
@@ -63,7 +63,7 @@ class NaiveWalker(object):
 class AdaptiveWalker(object):
     def __init__(self, msm, nsteps, criteria):
         self.graph = FakeMSM(msm.n_states_)
-        self.graph.transmat_ = np.copy(msm)
+        self.graph.transmat_ = np.copy(msm.transmat_)
         self.nsteps = nsteps
         self.criteria = criteria
 
