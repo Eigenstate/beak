@@ -150,6 +150,9 @@ def load_trajectory(filename, **kwargs):
 
         # Load reference topology and get relevant atom selection
         ref = config["system"]["reference"]
+        psfref = config["system"]["canonical_sel"]
+        prmref = config["system"]["refsel"]
+
         if "psf" in ref:
             refid = molecule.load("psf", ref,
                                   "pdb", ref.replace("psf", "pdb"))
@@ -160,9 +163,6 @@ def load_trajectory(filename, **kwargs):
             aselref = atomsel(prmref, molid=refid)
         else:
             raise ValueError("Unknown type of reference '%s'" % ref)
-
-        psfref = config["system"]["canonical_sel"]
-        prmref = config["system"]["refsel"]
 
     else: # Legacy... delete TODO
         if topology is None:
