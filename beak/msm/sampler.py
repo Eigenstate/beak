@@ -7,7 +7,7 @@ import numpy as np
 import random
 import sys
 import time
-from configparser import RawConfigParser
+from configparser import ConfigParser
 from glob import glob
 from socket import gethostname
 from beak.msm import utils
@@ -42,16 +42,16 @@ class Sampler(object):
         evaltcl("color scale method BGR")
         evaltcl("display projection Orthographic")
 
-        self.config = RawConfigParser()
+        self.config = ConfigParser(interpolation=None)
         self.config.read(configfile)
 
         self.ligands = self.config["system"]["ligands"].split(',')
-        self.num_ligands = int(self.config["system"]["num_ligands"])
+        self.num_ligands = self.config.getint("system", "num_ligands")
         self.generation = generation
         self.firstgen = firstgen
 
-        assert generation <= int(self.config["production"]["generation"])
-        self.nreps = int(self.config["model"]["samplers"])
+        assert generation <= self.config.getint("production", "generation")
+        self.nreps = self.config.getint("model", "samplers")
         self.dir = self.config["system"]["rootdir"]
         if gethostname() == "platyrhynchos":
             print("DIR: %s" % self.dir)
@@ -225,15 +225,15 @@ class ClusterSampler(object):
         evaltcl("color scale method BGR")
         evaltcl("display projection Orthographic")
 
-        self.config = RawConfigParser()
+        self.config = ConfigParser(interpolation=None)
         self.config.read(configfile)
 
         self.ligands = self.config["system"]["ligands"].split(',')
-        self.num_ligands = int(self.config["system"]["num_ligands"])
+        self.num_ligands = self.config.getint("system", "num_ligands")
         self.generation = generation
 
-        assert generation <= int(self.config["production"]["generation"])
-        self.nreps = int(self.config["model"]["samplers"])
+        assert generation <= self.config.getint("production", "generation")
+        self.nreps = self.config.getint("model", "samplers")
         self.dir = self.config["system"]["rootdir"]
         if gethostname() == "platyrhynchos":
             self.dir = self.dir.replace("/scratch/PI/rondror/rbetz/",
@@ -394,11 +394,11 @@ class DensitySampler(object):
         evaltcl("color scale method BGR")
         evaltcl("display projection Orthographic")
 
-        self.config = RawConfigParser()
+        self.config = ConfigParser(interpolation=None)
         self.config.read(configfile)
 
         self.ligands = self.config["system"]["ligands"].split(',')
-        self.nligs = int(self.config["system"]["num_ligands"])
+        self.nligs = self.config.getint("system", "num_ligands")
         self.dir = self.config["system"]["rootdir"]
 
         self.generation = kwargs.get("generation")
@@ -406,8 +406,9 @@ class DensitySampler(object):
         self.prodfiles = kwargs.get("prodfiles", None)
         if self.prodfiles is None:
             self.prodfiles = utils.get_prodfiles(self.generation, self.dir,
-                                                 self.config["model"].get("include_equilibration",
-                                                                          "False").lower() == "true")
+                                                 new=False,
+                                                 equilibration=self.config.getboolean("model",
+                                                                                      "include_equilibration"))
 
         # Load reference structure for later alignment
         # Hide it
