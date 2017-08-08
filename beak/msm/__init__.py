@@ -6,5 +6,5 @@ __author__  = 'Robin Betz'
 from beak.msm.aggregator import ClusterCenter, ClusterDensity
 from beak.msm.sampler import Sampler, ClusterSampler
 from beak.msm.utils import *
-from beak.msm.walkers import *
+from beak.msm.walker import *
 
