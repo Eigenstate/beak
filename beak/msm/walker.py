@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import random
 import numpy as np
 
 from msmbuilder.msm import MarkovStateModel
@@ -37,45 +36,59 @@ class FakeMSM(object):
         return chain
 
 class NaiveWalker(object):
-    def __init__(self, msm, nsteps):
+    def __init__(self, msm, nsteps, nwalkers):
         self.graph = FakeMSM(msm.n_states_)
         self.graph.transmat_ = np.copy(msm.transmat_)
         self.nsteps = nsteps
+        self.walkers = nwalkers
 
-        self.start = msm.inverse_transform(np.argsort(msm.populations_))[0][:3]
-        self.sampled = [random.choice(self.start)]
+        # Start all walkers at most populous state
+        self.start = msm.inverse_transform(np.argsort(msm.populations_))[0][0]
+        self.start = [self.start] * self.walkers
+        self.sampled = []
+
         self.total = 0
+        self.found = set(self.start)
 
     def walk_once(self):
-        news = self.graph.sample_steps(state=self.sampled[-1],
-                                       n_steps=self.nsteps)
-        self.sampled.extend(news)
-        self.total += self.nsteps
+        for w in range(self.walkers):
+            news = self.graph.sample_steps(state=self.start[w],
+                                           n_steps=self.nsteps)
+            self.found.update(news)
+            self.start[w] = news[-1]
+            self.sampled.append(news)
+
+            self.total += self.nsteps
 
     def walk(self):
-        found = set(self.sampled)
-        while len(found) < self.graph.n_states_:
+        while len(self.found) < self.graph.n_states_:
             self.walk_once()
-            found.update(self.sampled)
+            print("Now found %d" % len(self.found))
 
         return self.total
 
 class AdaptiveWalker(object):
-    def __init__(self, msm, nsteps, criteria):
+    def __init__(self, msm, nsteps, criteria, nwalkers):
         self.graph = FakeMSM(msm.n_states_)
         self.graph.transmat_ = np.copy(msm.transmat_)
         self.nsteps = nsteps
         self.criteria = criteria
+        self.walkers = nwalkers
 
-        self.start = msm.inverse_transform(np.argsort(msm.populations_))[0][:3]
-        self.start = random.choice(self.start)
+        # Start all walkers at most populous state
+        self.start = msm.inverse_transform(np.argsort(msm.populations_))[0][0]
+        self.start = [self.start] * self.walkers
         self.sampled = []
         self.total = 0
+        self.found = set(self.start)
 
     def walk_once(self):
-        news = self.graph.sample_steps(state=self.start,
-                                       n_steps=self.nsteps)
-        self.sampled.append(news)
+        for w in range(self.walkers):
+            news = self.graph.sample_steps(state=self.start[w],
+                                           n_steps=self.nsteps)
+            self.found.update(news)
+            self.sampled.append(news)
+            self.total += self.nsteps
 
         estmsm = MarkovStateModel(lag_time=1,
                                   prior_counts=1e-6,
@@ -84,18 +97,18 @@ class AdaptiveWalker(object):
         estmsm.fit_transform(self.sampled)
 
         if self.criteria == "hub_scores":
+            #print("Scoring")
             scores = hub_scores(estmsm)
-            self.start = estmsm.inverse_transform([np.argmin(scores)])[0][0]
+            self.start = estmsm.inverse_transform(np.argsort(scores))[0][:self.walkers]
+            #print("Start: %s" % self.start)
         elif self.criteria == "populations":
-            self.start = estmsm.inverse_transform([np.argmin(estmsm.populations_)])[0][0]
+            self.start = estmsm.inverse_transform(np.argsort(estmsm.populations_))[0][:self.walkers]
 
-        self.total += self.nsteps
-        return news
 
     def walk(self):
-        found = set()
-        while len(found) < self.graph.n_states_:
-            news = self.walk_once()
-            found.update(news)
+        while len(self.found) < self.graph.n_states_:
+            self.walk_once()
+            print("Now found %d" % len(self.found))
 
         return self.total
+
