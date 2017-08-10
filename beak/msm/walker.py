@@ -60,6 +60,11 @@ class NaiveWalker(object):
 
             self.total += self.nsteps
 
+    def walk_until(self, findme):
+        while findme not in self.found:
+            self.walk_once()
+        return self.total
+
     def walk(self):
         while len(self.found) < self.graph.n_states_:
             self.walk_once()
@@ -104,6 +109,10 @@ class AdaptiveWalker(object):
         elif self.criteria == "populations":
             self.start = estmsm.inverse_transform(np.argsort(estmsm.populations_))[0][:self.walkers]
 
+    def walk_until(self, findme):
+        while findme not in self.found:
+            self.walk_once()
+        return self.total
 
     def walk(self):
         while len(self.found) < self.graph.n_states_:
