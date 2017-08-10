@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import sys
 import numpy as np
 
 from msmbuilder.msm import MarkovStateModel
@@ -63,7 +64,7 @@ class NaiveWalker(object):
     def walk(self):
         while len(self.found) < self.graph.n_states_:
             self.walk_once()
-            print("Now found %d" % len(self.found))
+            sys.stdout.flush()
 
         return self.total
 
@@ -76,8 +77,8 @@ class AdaptiveWalker(object):
         self.walkers = nwalkers
 
         # Start all walkers at most populous state
-        self.start = msm.inverse_transform(np.argsort(msm.populations_))[0][0]
-        self.start = [self.start] * self.walkers
+        minpop = msm.inverse_transform(np.argsort(msm.populations_))[0][0]
+        self.start = [minpop] * self.walkers
         self.sampled = []
         self.total = 0
         self.found = set(self.start)
@@ -99,16 +100,25 @@ class AdaptiveWalker(object):
         if self.criteria == "hub_scores":
             #print("Scoring")
             scores = hub_scores(estmsm)
-            self.start = estmsm.inverse_transform(np.argsort(scores))[0][:self.walkers]
+            self.start = estmsm.inverse_transform(np.argsort(scores)[:self.walkers])[0]
+
             #print("Start: %s" % self.start)
         elif self.criteria == "populations":
-            self.start = estmsm.inverse_transform(np.argsort(estmsm.populations_))[0][:self.walkers]
+            self.start = estmsm.inverse_transform(np.argsort(estmsm.populations_[:self.walkers]))[0]
 
+        # Handle insufficient states having been discovered initially
+        if len(self.start) < self.walkers:
+            missing = self.walkers - len(self.start)
+            additionals = np.random.choice(self.start, size=missing)
+            print("Adding %s" % additionals)
+            self.start = np.append(self.start, additionals)
+            print("Adding more starters now %s" % len(self.start))
+            print("start: %s" % self.start)
 
     def walk(self):
         while len(self.found) < self.graph.n_states_:
             self.walk_once()
-            print("Now found %d" % len(self.found))
+            sys.stdout.flush()
 
         return self.total
 
