@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import sys
 import numpy as np
 
 from msmbuilder.msm import MarkovStateModel
@@ -61,10 +60,14 @@ class NaiveWalker(object):
 
             self.total += self.nsteps
 
+    def walk_until(self, findme):
+        while findme not in self.found:
+            self.walk_once()
+        return self.total
+
     def walk(self):
         while len(self.found) < self.graph.n_states_:
             self.walk_once()
-            sys.stdout.flush()
 
         return self.total
 
@@ -115,10 +118,14 @@ class AdaptiveWalker(object):
             print("Adding more starters now %s" % len(self.start))
             print("start: %s" % self.start)
 
+    def walk_until(self, findme):
+        while findme not in self.found:
+            self.walk_once()
+        return self.total
+
     def walk(self):
         while len(self.found) < self.graph.n_states_:
             self.walk_once()
-            sys.stdout.flush()
 
         return self.total
 
