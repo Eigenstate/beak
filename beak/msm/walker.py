@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import numpy as np
-
+import sys
 from msmbuilder.msm import MarkovStateModel
 from msmbuilder.tpt import hub_scores
 from sklearn.utils import check_random_state
@@ -41,10 +41,9 @@ class NaiveWalker(object):
         self.graph.transmat_ = np.copy(msm.transmat_)
         self.nsteps = nsteps
         self.walkers = nwalkers
-
         # Start all walkers at most populous state
-        self.start = msm.inverse_transform(np.argsort(msm.populations_))[0][0]
-        self.start = [self.start] * self.walkers
+        minpop = msm.inverse_transform(np.argsort(msm.populations_))[0][-1]
+        self.start = [minpop] * self.walkers
         self.sampled = []
 
         self.total = 0
@@ -68,7 +67,6 @@ class NaiveWalker(object):
     def walk(self):
         while len(self.found) < self.graph.n_states_:
             self.walk_once()
-            print("Now found %d" % len(self.found))
 
         return self.total
 
@@ -81,13 +79,15 @@ class AdaptiveWalker(object):
         self.walkers = nwalkers
 
         # Start all walkers at most populous state
-        self.start = msm.inverse_transform(np.argsort(msm.populations_))[0][0]
-        self.start = [self.start] * self.walkers
+        minpop = msm.inverse_transform(np.argsort(msm.populations_))[0][-1]
+        self.start = [minpop] * self.walkers
         self.sampled = []
         self.total = 0
         self.found = set(self.start)
 
     def walk_once(self):
+        print("Walking...")
+        sys.stdout.flush()
         for w in range(self.walkers):
             news = self.graph.sample_steps(state=self.start[w],
                                            n_steps=self.nsteps)
@@ -99,15 +99,34 @@ class AdaptiveWalker(object):
                                   prior_counts=1e-6,
                                   reversible_type="transpose",
                                   ergodic_cutoff="off")
-        estmsm.fit_transform(self.sampled)
+        estmsm.fit(self.sampled)
 
         if self.criteria == "hub_scores":
-            #print("Scoring")
-            scores = hub_scores(estmsm)
-            self.start = estmsm.inverse_transform(np.argsort(scores))[0][:self.walkers]
-            #print("Start: %s" % self.start)
+            # Handle too few nodes found
+            if len(estmsm.mapping_) <= 2:
+                print("Skipping scoring, too few nodes found")
+                sys.stdout.flush()
+                self.start = estmsm.inverse_transform(range(len(estmsm.populations_)))[0][:]
+            else:
+                print("Scoring %d nodes" % len(estmsm.populations_))
+                sys.stdout.flush()
+                scores = hub_scores(estmsm)
+                self.start = estmsm.inverse_transform(np.argsort(scores))[0][:self.walkers]
+                print("Start: %s" % self.start)
+                sys.stdout.flush()
+
         elif self.criteria == "populations":
             self.start = estmsm.inverse_transform(np.argsort(estmsm.populations_))[0][:self.walkers]
+
+        # Handle insufficient states having been discovered initially
+        if len(self.start) < self.walkers:
+            missing = self.walkers - len(self.start)
+            additionals = np.random.choice(self.start, size=missing)
+            print("Adding %s" % additionals)
+            self.start = np.append(self.start, additionals)
+            print("Adding more starters now %s" % len(self.start))
+            print("start: %s" % self.start)
+            sys.stdout.flush()
 
     def walk_until(self, findme):
         while findme not in self.found:
@@ -117,7 +136,6 @@ class AdaptiveWalker(object):
     def walk(self):
         while len(self.found) < self.graph.n_states_:
             self.walk_once()
-            print("Now found %d" % len(self.found))
 
         return self.total
 
