@@ -106,7 +106,7 @@ class AdaptiveWalker(object):
             if len(estmsm.mapping_) <= 2:
                 print("Skipping scoring, too few nodes found")
                 sys.stdout.flush()
-                self.start = []
+                self.start = estmsm.inverse_transform(range(len(estmsm.populations_)))[0][:]
             else:
                 print("Scoring %d nodes" % len(estmsm.populations_))
                 sys.stdout.flush()
