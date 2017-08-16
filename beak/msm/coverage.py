@@ -54,8 +54,8 @@ def get_coverage(config, outname, generation):
                                         config=config),
                  utils.get_prodfiles(generation,
                                      rootdir=cfg["system"]["rootdir"],
-                                    equilibration=cfg.getbool("model",
-                                                              "include_equilibration"))
+                                     equilibration=cfg.getboolean("model",
+                                                                  "include_equilibration"))
                 )
 
     if "psf" in cfg["system"]["reference"]:
@@ -74,4 +74,3 @@ def get_coverage(config, outname, generation):
         sel.set("beta", int(sel.get("beta")[0])+1)
 
     molecule.write(refid, "mae", outname)
-
