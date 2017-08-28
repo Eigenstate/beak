@@ -522,7 +522,7 @@ class ClusterMeans(object): #pylint: disable=too-many-instance-attributes
         """
         Updates the grid with a given label and data
         """
-        if self.means.get(label):
+        if self.means.get(label) is not None:
             self.means[label] += data
             self.counts[label] += 1
         else:
