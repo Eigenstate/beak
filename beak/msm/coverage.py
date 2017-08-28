@@ -2,6 +2,7 @@ import os
 import sys
 from beak.msm import utils
 from configparser import ConfigParser
+from itertools import repeat
 from multiprocessing import Pool
 from vmd import atomsel, molecule
 
@@ -29,6 +30,11 @@ def process_traj(traj, lignames, config):
         csel.update()
         contacts.extend(csel.get("index"))
 
+    # Handle non-stripped trajectory
+    minp = min(atomsel("resname ACE").get("index"))
+    for i in range(len(contacts)):
+        contacts[i] -= minp
+
     molecule.delete(molid)
     print("Done with trajectory %s" % traj)
     sys.stdout.flush()
@@ -48,15 +54,15 @@ def get_coverage(config, outname, generation):
     cfg.read(config)
 
     p = Pool(int(os.environ.get("SLURM_NTASKS", 4)))
-    dats = p.map(
-                 lambda x: process_traj(traj=x,
-                                        lignames=cfg["system"]["ligands"].split(","),
-                                        config=config),
-                 utils.get_prodfiles(generation,
+    prodfiles =  utils.get_prodfiles(generation,
                                      rootdir=cfg["system"]["rootdir"],
                                      equilibration=cfg.getboolean("model",
                                                                   "include_equilibration"))
-                )
+
+    dats = p.starmap(process_traj,
+                     zip(prodfiles, repeat(cfg["system"]["ligands"].split(",")),
+                         repeat(config))
+                    )
 
     if "psf" in cfg["system"]["reference"]:
         refid = molecule.load("psf", cfg["system"]["reference"],
@@ -68,9 +74,10 @@ def get_coverage(config, outname, generation):
                                                                            "inpcrd"))
 
     # A little inelegant but selecting by index is pretty fast
-    atomsel("all", refid).set("beta", 0)
+    atomsel("all", refid).set("mass", 0)
     for d in dats:
-        sel = atomsel("index %d" % d, refid)
-        sel.set("beta", int(sel.get("beta")[0])+1)
+        for l in d:
+            sel = atomsel("index %d" % l, refid)
+            sel.set("mass", float(sel.get("mass")[0])+1.)
 
     molecule.write(refid, "mae", outname)
