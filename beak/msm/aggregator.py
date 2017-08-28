@@ -397,7 +397,7 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
 
     #==========================================================================
 
-    def save_densities(self, outdir):
+    def save(self, outdir):
         """
         Calculates all density maps for observed ligands. Then,
         normalizes all of the density maps according to observed count.
@@ -406,6 +406,14 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
 
         Args:
             outdir (str): Output directory in which to put dx map files
+        """
+        self.save_densities(outdir)
+
+    #==========================================================================
+
+    def save_densities(self, outdir):
+        """
+        Old style naming for save
         """
         with VmdSilencer(output=os.path.join(outdir, "vmd.log")):
             for i, traj in enumerate(self.prodfiles):
@@ -421,6 +429,178 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
             self.means[label] /= float(self.counts[label])
 
         utils.dump(self.means, os.path.join(outdir, "means.pkl"))
+
+    #==========================================================================
+
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#                            Cluster means only                               #
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+class ClusterMeans(object): #pylint: disable=too-many-instance-attributes
+    """
+    Obtains mean position of each ligand atom in clusters.
+    Aims to be memory efficient and as fast as possible by interating through
+    trajectories only once, loading only one at a time.
+
+    Attributes:
+        means (dict int->ndarray): Means for each cluster, indexed by label
+        counts (dict int->int): Number of times each cluster was observed
+    """
+    #==========================================================================
+
+    def __init__(self, prodfiles, clusters, **kwargs):
+        """
+        Args:
+            trajfiles (list of str): Trajectory files
+            clusters (list of ndarray): Cluster data
+            config (ConfigParser): Config file with other system information, will
+                read info from this if possible
+            maxframes (list of int): Number of frames to read from each file
+            topology (str): Single topology to use for all frames
+            dimensions (list of 3 floats): System box size
+            ligands (list of str): Ligand residue names
+            reference (str): Path to reference structure for alignment
+            rootdir (str): Root directory containing files etc
+            alignsel (str): String for alignment on reference structure
+        """
+        self.prodfiles = prodfiles
+        self.clusters = clusters
+
+        if kwargs.get("config") is not None:
+            if isinstance(kwargs.get("config"), str):
+                config = RawConfigParser()
+                config.read(kwargs.get("config"))
+            else:
+                config = kwargs.get("config")
+            self.dimensions = [float(d) for d in config["dabble"]["dimensions"].split(',')]
+            self.lignames = config["system"]["ligands"].split(',')
+            self.rootdir = config["system"]["rootdir"]
+            refname = config["system"]["reference"]
+            self.refsel = config["system"]["refsel"]
+            # For backwards / psf compatibility
+            self.psfsel = config["system"]["canonical_sel"]
+        else:
+            self.dimensions = kwargs.get("dimensions")
+            self.lignames = kwargs.get("ligands")
+            self.rootdir = kwargs.get("rootdir")
+            refname = kwargs.get("reference")
+            self.refsel = kwargs.get("alignsel")
+            self.psfsel = kwargs.get("alignsel")
+
+
+        self.counts = {}
+        self.means = {}
+
+        # Handle optional arguments
+        self.maxframes = kwargs.get("maxframes", None)
+        self.topology = kwargs.get("topology", None)
+
+        # Load reference structure
+        if "prmtop" in refname:
+            self.refid = molecule.load("parm7", refname,
+                                       "crdbox", refname.replace("prmtop", "inpcrd"))
+        elif "psf" in refname:
+            self.refid = molecule.load("psf", refname,
+                                       "pdb", refname.replace("psf", "pdb"))
+        else:
+            raise ValueError("Unknown format of reference file %s" % refname)
+
+        # Sanity check that saved structure could actually be read
+        if not molecule.exists(self.refid):
+            raise ValueError("Couldn't load reference structure %s"
+                             % refname)
+
+        # Sanity check there are actually production files to process
+        if not self.prodfiles:
+            raise ValueError("No trajectory files to process")
+
+        self.aselref = atomsel(self.refsel, molid=self.refid)
+
+    #==========================================================================
+
+    def _update_mean(self, label, data):
+        """
+        Updates the grid with a given label and data
+        """
+        if self.means.get(label):
+            self.means[label] += data
+            self.counts[label] += 1
+        else:
+            self.means[label] = data
+            self.counts[label] = 1
+
+    #==========================================================================
+
+    def _process_traj(self, trajfile):
+        """
+        Updates the densities so far from the given trajectory and cluster
+        assignments.
+
+        Args:
+            trajfile (str): Trajectory file to process
+        """
+        # Load the trajectory
+        assert trajfile in self.prodfiles
+        trajidx = self.prodfiles.index(trajfile)
+        maxframe = -1 if self.maxframes is None else self.maxframes[trajidx]-1
+
+        molid = utils.load_trajectory(trajfile,
+                                      rootdir=self.rootdir,
+                                      aselref=self.aselref,
+                                      psfref=self.psfsel,
+                                      prmref=self.refsel,
+                                      frame=(0, maxframe),
+                                      topology=self.topology)
+
+        # Get residue number for each ligand
+        ligids = sorted(set(atomsel("resname %s" % " ".join(self.lignames),
+                                    molid=molid).get("residue")))
+        masks = [vmdnumpy.atomselect(molid, 0,
+                                     "noh and same fragment as residue %d" % l)
+                 for l in ligids]
+
+        # DEBUG print out nframes
+        if len(self.clusters[trajidx*len(ligids)]) != molecule.numframes(molid):
+            print("Mismatch trajectory: %s" % trajfile)
+            print("%d clusters but %d frames"
+                  % (len(self.clusters[trajidx*len(ligids)]),
+                     molecule.numframes(molid)))
+            sys.stdout.flush()
+
+        # Go through each frame just once
+        # Update density for each ligand
+        for frame in range(molecule.numframes(molid)):
+            for i in range(len(ligids)):
+                coords = np.compress(masks[i],
+                                     vmdnumpy.timestep(molid, frame),
+                                     axis=0)
+                cidx = trajidx*len(ligids) + i
+                self._update_mean(self.clusters[cidx][frame], coords)
+
+        molecule.delete(molid)
+
+    #==========================================================================
+
+    def save(self, outname):
+        """
+        Calculates all density maps for observed ligands. Then,
+        normalizes all of the density maps according to observed count.
+        That way, a density of 1.0 in some location means a ligand atom
+        was there 100% of the time.
+
+        Args:
+            outname (str): Output file name for means pickle
+        """
+        with VmdSilencer(output="vmd.log"):
+            for i, traj in enumerate(self.prodfiles):
+                print("  On trajfile %d of %d" % (i, len(self.prodfiles)))
+                sys.stdout.flush()
+                self._process_traj(traj)
+
+        for label in self.means:
+            self.means[label] /= float(self.counts[label])
+
+        utils.dump(self.means, outname)
 
     #==========================================================================
 
