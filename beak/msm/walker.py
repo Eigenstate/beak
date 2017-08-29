@@ -125,9 +125,9 @@ class AdaptiveWalker(object):
         if self.criteria == "hub_scores":
             # Handle too few nodes found
             if len(estmsm.mapping_) <= 2:
-                print("Skipping scoring, too few nodes found")
-                sys.stdout.flush()
                 self.start = estmsm.inverse_transform(range(len(estmsm.populations_)))[0][:]
+                print("Skipping scoring, too few nodes found: %s" % self.start)
+                sys.stdout.flush()
             else:
                 print("Scoring %d nodes" % len(estmsm.populations_))
                 sys.stdout.flush()
