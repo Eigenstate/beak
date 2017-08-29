@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+Methods necessary for my hacky fake graph MSMs
+"""
 
 import numpy as np
 import sys
@@ -6,8 +9,13 @@ from msmbuilder.msm import MarkovStateModel
 from msmbuilder.tpt import hub_scores
 from sklearn.utils import check_random_state
 
-# Methods necessary for my hacky fake graph MSMs
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 class FakeMSM(object):
+    """
+    A fake MSM that can easily be walked on and transition matrix
+    modified
+    """
     def __init__(self, n_states):
         self.n_states_ = n_states
         self.transmat_ = np.zeros((n_states, n_states))
@@ -35,7 +43,13 @@ class FakeMSM(object):
 
         return chain
 
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 class NaiveWalker(object):
+    """
+    Walks around naively on the graph, with no
+    adaptive sampling
+    """
     def __init__(self, msm, nsteps, nwalkers):
         self.graph = FakeMSM(msm.n_states_)
         self.graph.transmat_ = np.copy(msm.transmat_)
@@ -70,13 +84,20 @@ class NaiveWalker(object):
 
         return self.total
 
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 class AdaptiveWalker(object):
-    def __init__(self, msm, nsteps, criteria, nwalkers):
+    """
+    Walks around adaptively on the graph, building a MSM as it goes.
+    Adaptive samples according to either populations or hub_scores
+    """
+    def __init__(self, msm, nsteps, criteria, nwalkers, lag=1):
         self.graph = FakeMSM(msm.n_states_)
         self.graph.transmat_ = np.copy(msm.transmat_)
         self.nsteps = nsteps
         self.criteria = criteria
         self.walkers = nwalkers
+        self.lag = lag
 
         # Start all walkers at most populous state
         minpop = msm.inverse_transform(np.argsort(msm.populations_))[0][-1]
@@ -95,7 +116,7 @@ class AdaptiveWalker(object):
             self.sampled.append(news)
             self.total += self.nsteps
 
-        estmsm = MarkovStateModel(lag_time=1,
+        estmsm = MarkovStateModel(lag_time=self.lag,
                                   prior_counts=1e-6,
                                   reversible_type="transpose",
                                   ergodic_cutoff="off")
@@ -139,3 +160,4 @@ class AdaptiveWalker(object):
 
         return self.total
 
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
