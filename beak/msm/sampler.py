@@ -435,7 +435,7 @@ class DensitySampler(object):
 
         # Find and load the msm, and clusters, and tics
         self.msmname = kwargs.get("msm")
-        if os.path.isfile(kwargs.get("scores")):
+        if os.path.isfile(kwargs.get("scores", "")):
             self.scores = load(kwargs.get("scores"))
         else:
             self.scores = kwargs.get("scores")
@@ -453,7 +453,8 @@ class DensitySampler(object):
     #==========================================================================
 
     def __del__(self):
-        molecule.delete(self.refid)
+        if self.refid in molecule.listall():
+            molecule.delete(self.refid)
         for mid in self.molids.values():
             for _ in mid:
                 molecule.delete(_)
