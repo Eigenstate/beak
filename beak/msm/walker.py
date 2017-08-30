@@ -6,6 +6,7 @@ Methods necessary for my hacky fake graph MSMs
 import numpy as np
 import sys
 from msmbuilder.msm import MarkovStateModel
+from msmbuilder.lumping import PCCAPlus
 from msmbuilder.tpt import hub_scores
 from sklearn.utils import check_random_state
 
@@ -116,11 +117,28 @@ class AdaptiveWalker(object):
             self.sampled.append(news)
             self.total += self.nsteps
 
-        estmsm = MarkovStateModel(lag_time=self.lag,
-                                  prior_counts=1e-6,
-                                  reversible_type="transpose",
-                                  ergodic_cutoff="off")
-        estmsm.fit(self.sampled)
+        micromsm = MarkovStateModel(lag_time=self.lag,
+                                    prior_counts=1e-6,
+                                    reversible_type="transpose",
+                                    ergodic_cutoff="off")
+        micromsm.fit(self.sampled)
+
+        # Now make a macrostate MSM by lumping these into max 50 states
+        # that way hub_scores never is overwhelmed, just like in my
+        # actual simulation runs
+        if len(micromsm.populations_) > 50:
+            pcca = PCCAPlus.from_msm(micromsm, n_macrostates=50)
+            mclustered = pcca.transform(self.sampled, mode="fill")
+
+            estmsm = MarkovStateModel(lag_time=self.lag,
+                                      prior_counts=1e-6,
+                                      reversible_type="transpose",
+                                      ergodic_cutoff="off")
+            estmsm.fit(mclustered)
+        else:
+            print("Too few nodes for lumping")
+            sys.stdout.flush()
+            estmsm = micromsm
 
         if self.criteria == "hub_scores":
             # Handle too few nodes found
