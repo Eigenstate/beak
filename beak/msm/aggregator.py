@@ -346,7 +346,8 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
             # Edges is the same, so just initialize it here
             self.grids[label] = [np.zeros(binned.shape), edges]
             self.counts[label] = 0
-            self.means[label] = [np.zeros(data.shape)]
+            self.means[label] = np.zeros(data.shape)
+            self.variances[label] = np.zeros(data.shape)
 
         # Update, using Welford's method to update mean and variance in place
         self.grids[label][0] += binned
