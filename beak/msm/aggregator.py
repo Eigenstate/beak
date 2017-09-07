@@ -298,6 +298,7 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
         self.grids = {}
         self.counts = {}
         self.means = {}
+        self.variances = {}
 
         # Handle optional arguments
         self.maxframes = kwargs.get("maxframes", None)
@@ -328,22 +329,33 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
 
     def _update_grid(self, label, data):
         """
-        Updates the grid with a given label and data
+        Updates the grid with a given label and data.
+        Mean and variance are updated in-place.
+
+        Args:
+            label (int): Which cluster to update data
+            data (ndarray, natoms x 3): Coordinates of ligand to update with
         """
         binned, edges = np.histogramdd(data,
                                        bins=self.dimensions,
                                        range=self.ranges,
                                        normed=False)
 
+        # Initialize if necessary
+        if self.grids.get(label) is None:
+            # Edges is the same, so just initialize it here
+            self.grids[label] = [np.zeros(binned.shape), edges]
+            self.counts[label] = 0
+            self.means[label] = [np.zeros(data.shape)]
 
-        if self.grids.get(label):
-            self.grids[label][0] += binned
-            self.means[label] += data
-            self.counts[label] += 1
-        else:
-            self.grids[label] = [binned, edges]
-            self.means[label] = data
-            self.counts[label] = 1
+        # Update, using Welford's method to update mean and variance in place
+        self.grids[label][0] += binned
+
+        self.counts[label] += 1
+        delta = data - self.means[label]
+        self.means[label] += delta/self.counts[label]
+        delta2 = data - self.means[label]
+        self.variances[label] += np.multiply(delta, delta2)
 
     #==========================================================================
 
@@ -426,9 +438,14 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
             den /= float(self.counts[label])
             den.export(os.path.join(outdir, "%s.dx" % label),
                        file_format="dx")
-            self.means[label] /= float(self.counts[label])
+
+            # Last step of Welford's algorithm
+            self.variances[label] /= float(self.counts[label] - 1)
+            # Means is already divided
+            # self.means[label] /= float(self.counts[label])
 
         utils.dump(self.means, os.path.join(outdir, "means.pkl"))
+        utils.dump(self.variances, os.path.join(outdir, "variance.pkl"))
 
     #==========================================================================
 
