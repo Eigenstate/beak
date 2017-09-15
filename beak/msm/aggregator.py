@@ -193,8 +193,10 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
             print("  On trajfile %d of %d" % (i, len(self.prodfiles)))
             sys.stdout.flush()
             self._process_traj(traj)
+
         # Last step of Welford's algorithm
-        self.variances[label] /= float(self.counts[label] - 1)
+        for label in self.grids:
+            self.variances[label] /= float(self.counts[label] - 1)
 
     #==========================================================================
 
