@@ -330,14 +330,14 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
         Aggregates all the data from the multiple ClusterDensity objects
         contained in the data Queue
         """
+        # Now queue full so terminate workers
+        for w in workers:
+            w.join()
+
         data = []
         while not dataqueue.empty():
             print("Got a guy from the queue")
             data.append(dataqueue.get())
-
-        # Now queue full so terminate workers
-        for w in workers:
-            w.join()
 
         for label in data[0].grids:
             for worker in data:
