@@ -10,9 +10,8 @@ import numpy as np
 from beak.msm import utils
 from configparser import ConfigParser
 from Dabble import VmdSilencer
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 from gridData import Grid
-from queue import Queue
 from vmd import atomsel, molecule, vmdnumpy
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -74,9 +73,12 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
         # Precalculate box edges
         self.ranges = [[-r/2., r/2.] for r in self.dimensions]
         self.grids = {}
+
+        # Accumulators for cluster statistics
         self.counts = {}
         self.means = {}
         self.variances = {}
+        self.accumulate_only = kwargs.get("accumulate_only", False) # Omit last divide
 
         # Handle optional arguments
         self.maxframes = kwargs.get("maxframes", None)
@@ -128,13 +130,14 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
             self.variances[label] = np.zeros(data.shape)
 
         # Update, using Welford's method to update mean and variance in place
-        self.grids[label][0] += binned
-
         self.counts[label] += 1
         delta = data - self.means[label]
         self.means[label] += delta/self.counts[label]
         delta2 = data - self.means[label]
         self.variances[label] += np.multiply(delta, delta2)
+
+        # Update grid / histogram
+        self.grids[label][0] += binned
 
     #==========================================================================
 
@@ -194,8 +197,13 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
             sys.stdout.flush()
             self._process_traj(traj)
 
+        # Check if we would NaN doing the reduce step
+        if self.accumulate_only:
+            return
+
         # Last step of Welford's algorithm
-        for label in self.grids:
+        for label in self.variances:
+            print("Counts of %s is %d" % (label, self.counts[label]))
             self.variances[label] /= float(self.counts[label] - 1)
 
     #==========================================================================
@@ -308,29 +316,31 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
                                    self.prodfiles[idx:idx+chunksize],
                                    self.clusters[idx*nligs:(idx+chunksize)*nligs]
                                   ),
-                             kwargs=self.kwargs,
+                             kwargs=dict(self.kwargs, accumulate_only=True),
                              daemon=True)
             jobber.start()
             workers.append(jobber)
 
-        for jobber in workers:
-            jobber.join()
-
-        return results
+        return results, workers
 
     #==========================================================================
 
-    def _aggregate_results(self, dataqueue):
+    def _aggregate_results(self, dataqueue, workers):
         """
         Aggregates all the data from the multiple ClusterDensity objects
         contained in the data Queue
         """
         data = []
         while not dataqueue.empty():
+            print("Got a guy from the queue")
             data.append(dataqueue.get())
 
-        for worker in data:
-            for label in worker.grids:
+        # Now queue full so terminate workers
+        for w in workers:
+            w.join()
+
+        for label in data[0].grids:
+            for worker in data:
                 # Initialize if necessary
                 if self.grids.get(label) is None:
                     self.grids[label] = worker.grids[label]
@@ -351,6 +361,9 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
                     self.grids[label][0] += worker.grids[label][0]
                     self.counts[label] += worker.counts[label]
 
+            # Do final step of welford now it's been accumulated
+            self.variances[label] /= float(self.counts[label] - 1)
+
     #==========================================================================
 
     def save(self, outdir):
@@ -363,8 +376,8 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
         Args:
             outdir (str): Output directory in which to put dx map files
         """
-        data = self._start_workers()
-        self._aggregate_results(data)
+        data, workers = self._start_workers()
+        self._aggregate_results(data, workers)
         self.save_densities(outdir)
 
     #==========================================================================
