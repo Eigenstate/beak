@@ -6,12 +6,13 @@ from __future__ import print_function
 import os
 import sys
 import numpy as np
+import tempfile
 
 from beak.msm import utils
 from configparser import ConfigParser
 from Dabble import VmdSilencer
-from multiprocessing import Process, Queue
 from gridData import Grid
+from multiprocessing import Pool, Process, Queue
 from vmd import atomsel, molecule, vmdnumpy
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -197,14 +198,15 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
             sys.stdout.flush()
             self._process_traj(traj)
 
-        # Check if we would NaN doing the reduce step
-        if self.accumulate_only:
-            return
+        # Last step of Welford's algorithm, if desired
+        if not self.accumulate_only:
+            for label in self.variances:
+                self.variances[label] /= float(self.counts[label] - 1)
 
-        # Last step of Welford's algorithm
-        for label in self.variances:
-            print("Counts of %s is %d" % (label, self.counts[label]))
-            self.variances[label] /= float(self.counts[label] - 1)
+        # Clean up atomselection objects that prevent pickling
+        molecule.delete(self.refid)
+        self.aselref = None
+        self.refid = None
 
     #==========================================================================
 
@@ -249,7 +251,10 @@ def run_cluster_worker(resultqueue, prodfiles, clusters, **kwargs):
     """
     densitor = ClusterDensity(prodfiles, clusters, **kwargs)
     densitor.process_all_trajectories()
-    resultqueue.put(densitor)
+    _, tf = tempfile.mkstemp(dir=os.environ.get("SCRATCH", ".",),
+                             suffix=".pkl")
+    utils.dump(densitor, tf)
+    resultqueue.put(tf)
 
 #==============================================================================
 
@@ -286,11 +291,12 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
         self.clusters = clusters
         self.kwargs = kwargs
 
-        # Precalculate box edges
+        # Will hold relevant data
         self.grids = {}
         self.counts = {}
         self.means = {}
         self.variances = {}
+        self.data = []
 
         # Sanity check there are actually production files to process
         if not self.prodfiles:
@@ -316,12 +322,63 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
                                    self.prodfiles[idx:idx+chunksize],
                                    self.clusters[idx*nligs:(idx+chunksize)*nligs]
                                   ),
-                             kwargs=dict(self.kwargs, accumulate_only=True),
+                             kwargs=dict(self.kwargs, accumulate_only=True,
+                                         name=str(i)),
                              daemon=True)
             jobber.start()
             workers.append(jobber)
 
         return results, workers
+
+    #==========================================================================
+
+    def _aggregate_one_label(self, label):
+        """
+        Aggregates the data for one label, so labels can be done
+        in parallel.
+
+        Returns:
+            (grid, count, mean, varianc)
+        """
+        assert self.data # Make sure data are actually around
+
+        # Initialize the label
+        grid = None
+        mean = None
+        variance = None
+        count = None
+
+        for i, worker in enumerate(self.data):
+
+            # Continue if this worker hasn't discovered this label
+            if worker.means.get(label) is None:
+                continue
+
+            # Initialize
+            if mean is None:
+                grid = worker.grids[label]
+                count = worker.counts[label]
+                mean = worker.means[label]
+                variance = worker.variances[label]
+                continue
+
+            # Parallel algorithm from Chan et. al.
+            delta = mean - worker.means[label]
+            na = worker.counts[label]
+            nb = count
+
+            mean += delta * nb / (na + nb)
+            variance += worker.variances[label] \
+                     +  delta**2 * (na * nb)/(na + nb)
+
+            # Now do easy update of grids and counts
+            grid[0] += worker.grids[label][0]
+            count += worker.counts[label]
+
+        # Translate mean sum squares diff to sample variance
+        variance /= float(count - 1)
+
+        return (grid, count, mean, variance)
 
     #==========================================================================
 
@@ -334,35 +391,28 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
         for w in workers:
             w.join()
 
-        data = []
+        # Data gets (grids, counts, means, variances)
+        filenames = []
         while not dataqueue.empty():
-            print("Got a guy from the queue")
-            data.append(dataqueue.get())
+            filenames.append(dataqueue.get())
+            self.data.append(utils.load(filenames[-1]))
 
-        for label in data[0].grids:
-            for worker in data:
-                # Initialize if necessary
-                if self.grids.get(label) is None:
-                    self.grids[label] = worker.grids[label]
-                    self.counts[label] = worker.counts[label]
-                    self.means[label] = worker.means[label]
-                    self.variances[label] = worker.variances[label]
-                else:
-                    # Parallel algorithm from Chan et. al.
-                    delta = self.means[label] - worker.means[label]
-                    na = worker.counts[label]
-                    nb = self.counts[label]
+        assert self.data
+        workers = Pool(int(os.environ.get("SLURM_NTASKS", "4")))
+        labels = list(self.data[0].grids.keys())
+        aggregated = workers.map(self._aggregate_one_label, labels)
 
-                    self.means[label] += delta * nb / (na + nb)
-                    self.variances[label] += worker.variances[label] \
-                                          +  delta**2 * (na * nb)/(na + nb)
+        # Put back into data structure since pool can't modify class
+        for idx, datum in enumerate(aggregated):
+            label = labels[idx]
+            self.grids[label] = datum[0]
+            self.counts[label] = datum[1]
+            self.means[label] = datum[2]
+            self.variances[label] = datum[3]
 
-                    # Now do easy update of grids and counts
-                    self.grids[label][0] += worker.grids[label][0]
-                    self.counts[label] += worker.counts[label]
-
-            # Do final step of welford now it's been accumulated
-            self.variances[label] /= float(self.counts[label] - 1)
+        # Clean up temporary files
+        for filename in filenames:
+            os.remove(filename)
 
     #==========================================================================
 
@@ -379,6 +429,7 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
         data, workers = self._start_workers()
         self._aggregate_results(data, workers)
         self.save_densities(outdir)
+        print("Done!")
 
     #==========================================================================
 
