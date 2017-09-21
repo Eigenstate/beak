@@ -80,6 +80,7 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
         self.means = {}
         self.variances = {}
         self.accumulate_only = kwargs.get("accumulate_only", False) # Omit last divide
+        self.found_labels = set()
 
         # Handle optional arguments
         self.maxframes = kwargs.get("maxframes", None)
@@ -129,6 +130,7 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
             self.counts[label] = 0
             self.means[label] = np.zeros(data.shape)
             self.variances[label] = np.zeros(data.shape)
+            self.found_labels.update([label])
 
         # Update, using Welford's method to update mean and variance in place
         self.counts[label] += 1
@@ -254,7 +256,68 @@ def run_cluster_worker(resultqueue, prodfiles, clusters, **kwargs):
     _, tf = tempfile.mkstemp(dir=os.environ.get("SCRATCH", ".",),
                              suffix=".pkl")
     utils.dump(densitor, tf)
-    resultqueue.put(tf)
+    resultqueue.put((densitor.found_labels, tf))
+
+#==========================================================================
+
+def aggregate_one_label(data, label, outdir):
+    """
+    Aggregates the data for one label, so labels can be done
+    in parallel.
+
+    Args:
+        data (list of str): List of pickled data files
+        label (str): Cluster label
+        outdir (str): Output directory for density
+    Returns:
+        (mean, variance)
+    """
+    assert data # Make sure data are actually around
+
+    # Initialize the label
+    grid = None
+    mean = None
+    variance = None
+    count = None
+
+    for filename in data:
+        worker = utils.load(filename)
+
+        # Continue if this worker hasn't discovered this label
+        if worker.means.get(label) is None:
+            continue
+
+        # Initialize
+        if mean is None:
+            grid = worker.grids[label]
+            count = worker.counts[label]
+            mean = worker.means[label]
+            variance = worker.variances[label]
+            continue
+
+        # Parallel algorithm from Chan et. al.
+        delta = mean - worker.means[label]
+        na = worker.counts[label]
+        nb = count
+
+        mean += delta * nb / (na + nb)
+        variance += worker.variances[label] \
+                 +  delta**2 * (na * nb)/(na + nb)
+
+        # Now do easy update of grids and counts
+        grid[0] += worker.grids[label][0]
+        count += worker.counts[label]
+
+    # Translate mean sum squares diff to sample variance
+    variance /= float(count - 1)
+
+    # Save the density for this label
+    den = Grid(grid[0], edges=grid[1], origin=[0., 0., 0.])
+    den /= float(count)
+    den.export(os.path.join(outdir, "%s.dx" % label),
+               file_format="dx")
+
+    return label, mean, variance
 
 #==============================================================================
 
@@ -296,7 +359,6 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
         self.counts = {}
         self.means = {}
         self.variances = {}
-        self.data = []
 
         # Sanity check there are actually production files to process
         if not self.prodfiles:
@@ -328,87 +390,52 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
             jobber.start()
             workers.append(jobber)
 
-        return results, workers
-
-    #==========================================================================
-
-    def _aggregate_one_label(self, label):
-        """
-        Aggregates the data for one label, so labels can be done
-        in parallel.
-
-        Returns:
-            (grid, count, mean, varianc)
-        """
-        assert self.data # Make sure data are actually around
-
-        # Initialize the label
-        grid = None
-        mean = None
-        variance = None
-        count = None
-
-        for i, worker in enumerate(self.data):
-
-            # Continue if this worker hasn't discovered this label
-            if worker.means.get(label) is None:
-                continue
-
-            # Initialize
-            if mean is None:
-                grid = worker.grids[label]
-                count = worker.counts[label]
-                mean = worker.means[label]
-                variance = worker.variances[label]
-                continue
-
-            # Parallel algorithm from Chan et. al.
-            delta = mean - worker.means[label]
-            na = worker.counts[label]
-            nb = count
-
-            mean += delta * nb / (na + nb)
-            variance += worker.variances[label] \
-                     +  delta**2 * (na * nb)/(na + nb)
-
-            # Now do easy update of grids and counts
-            grid[0] += worker.grids[label][0]
-            count += worker.counts[label]
-
-        # Translate mean sum squares diff to sample variance
-        variance /= float(count - 1)
-
-        return (grid, count, mean, variance)
-
-    #==========================================================================
-
-    def _aggregate_results(self, dataqueue, workers):
-        """
-        Aggregates all the data from the multiple ClusterDensity objects
-        contained in the data Queue
-        """
-        # Now queue full so terminate workers
+        # Wait for workers to finish and fill the queue
         for w in workers:
             w.join()
 
-        # Data gets (grids, counts, means, variances)
+        return results
+
+    #==========================================================================
+
+    def _set_statistic(self, datum):
+        """
+        Put back into data structure since pool can't modify class
+        """
+        label = datum[0]
+        self.means[label] = datum[1]
+        self.variances[label] = datum[2]
+
+    #==========================================================================
+
+    def _aggregate_results(self, dataqueue, outdir):
+        """
+        Aggregates all the data from the multiple ClusterDensity objects
+        contained in the data Queue
+
+        Args:
+            dataqueue (Queue): Data queue from workers
+            outdir (str): Output directory for deliverables
+        """
+        # Data gets (means, variances)
         filenames = []
+        labels = set()
         while not dataqueue.empty():
-            filenames.append(dataqueue.get())
-            self.data.append(utils.load(filenames[-1]))
+            d = dataqueue.get()
+            labels.update(d[0])
+            filenames.append(d[1])
 
-        assert self.data
+        # Collect all found labels
+        labels = list(sorted(labels))
+
         workers = Pool(int(os.environ.get("SLURM_NTASKS", "4")))
-        labels = list(self.data[0].grids.keys())
-        aggregated = workers.map(self._aggregate_one_label, labels)
-
-        # Put back into data structure since pool can't modify class
-        for idx, datum in enumerate(aggregated):
-            label = labels[idx]
-            self.grids[label] = datum[0]
-            self.counts[label] = datum[1]
-            self.means[label] = datum[2]
-            self.variances[label] = datum[3]
+        results = []
+        for l in labels:
+            results.append(workers.apply_async(aggregate_one_label,
+                                               args=(filenames, l, outdir),
+                                               callback=self._set_statistic))
+        for r in results:
+            r.wait()
 
         # Clean up temporary files
         for filename in filenames:
@@ -426,9 +453,15 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
         Args:
             outdir (str): Output directory in which to put dx map files
         """
-        data, workers = self._start_workers()
-        self._aggregate_results(data, workers)
-        self.save_densities(outdir)
+        data = self._start_workers()
+
+        # This saves the densities in a pool
+        self._aggregate_results(data, outdir)
+
+        # Save deliverable statistics
+        utils.dump(self.means, os.path.join(outdir, "means.pkl"))
+        utils.dump(self.variances, os.path.join(outdir, "variance.pkl"))
+
         print("Done!")
 
     #==========================================================================
@@ -437,14 +470,7 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
         """
         Save density maps, means, and variances, into a output directory
         """
-        for label, hist in self.grids.items():
-            den = Grid(hist[0], edges=hist[1], origin=[0., 0., 0.])
-            den /= float(self.counts[label])
-            den.export(os.path.join(outdir, "%s.dx" % label),
-                       file_format="dx")
 
-        utils.dump(self.means, os.path.join(outdir, "means.pkl"))
-        utils.dump(self.variances, os.path.join(outdir, "variance.pkl"))
 
     #==========================================================================
 
