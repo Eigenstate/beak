@@ -195,6 +195,9 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
     #==========================================================================
 
     def process_all_trajectories(self):
+        """
+        Processes all trajectories
+        """
         for i, traj in enumerate(self.prodfiles):
             print("  On trajfile %d of %d" % (i, len(self.prodfiles)))
             sys.stdout.flush()
@@ -287,19 +290,20 @@ def aggregate_one_label(data, label, outdir):
         if worker.means.get(label) is None:
             continue
 
-        # Initialize
+        # Initialize to zeroes, then update next
+        # This is because mean and variance are just raw sums from workers
         if mean is None:
-            grid = worker.grids[label]
-            count = worker.counts[label]
-            mean = worker.means[label]
-            variance = worker.variances[label]
-            continue
+            grid = [np.zeros(worker.grids[label][0].shape),
+                    worker.grids[label][1]]
+            count = 0
+            mean = np.zeros(worker.means[label].shape)
+            variance = np.zeros(worker.variances[label].shape)
 
         # Parallel algorithm from Chan et. al.
-        delta = mean - worker.means[label]
-        na = worker.counts[label]
-        nb = count
+        na = count
+        nb = worker.counts[label]
 
+        delta = worker.means[label] - mean
         mean += delta * nb / (na + nb)
         variance += worker.variances[label] \
                  +  delta**2 * (na * nb)/(na + nb)
@@ -318,6 +322,11 @@ def aggregate_one_label(data, label, outdir):
                file_format="dx")
 
     return label, mean, variance
+
+#==============================================================================
+
+def print_error(e):
+    print("Exception from worker: %s" % e)
 
 #==============================================================================
 
@@ -372,7 +381,7 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
         density workers, with trajectories divided up evenly between them.
         """
         nproc = int(os.environ.get("SLURM_NTASKS", "8"))
-        chunksize = len(self.prodfiles) // nproc
+        chunksize = int(len(self.prodfiles) / nproc + 0.5) # Round up
         nligs = len(self.clusters) // len(self.prodfiles)
 
         results = Queue()
@@ -427,13 +436,17 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
 
         # Collect all found labels
         labels = list(sorted(labels))
-
         workers = Pool(int(os.environ.get("SLURM_NTASKS", "4")))
+
+        print("Aggregating density for labels: %s" % labels)
+        sys.stdout.flush()
+
         results = []
         for l in labels:
             results.append(workers.apply_async(aggregate_one_label,
                                                args=(filenames, l, outdir),
-                                               callback=self._set_statistic))
+                                               callback=self._set_statistic,
+                                               error_callback=print_error))
         for r in results:
             r.wait()
 
@@ -463,14 +476,6 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
         utils.dump(self.variances, os.path.join(outdir, "variance.pkl"))
 
         print("Done!")
-
-    #==========================================================================
-
-    def save_densities(self, outdir):
-        """
-        Save density maps, means, and variances, into a output directory
-        """
-
 
     #==========================================================================
 
