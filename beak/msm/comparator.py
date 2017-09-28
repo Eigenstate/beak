@@ -6,6 +6,7 @@ import numpy as np
 
 from beak.msm import utils
 from configparser import ConfigParser
+from vmd import molecule, vmdnumpy
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #                            Cluster comparators                              #
@@ -34,6 +35,19 @@ class ClusterEquivalent(object):
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+def get_bound_state(rootdir):
+    """
+    Returns bound coordinates as numpy array. Only b2ar supported
+    """
+    if "B2AR" in rootdir and "50ns" in rootdir:
+        mid = molecule.load("mae", os.path.join(rootdir, "..", "bound_5.mae"))
+        mask = vmdnumpy.atomselect(mid, 0, "noh and resname DALP")
+        coords = np.compress(mask, vmdnumpy.timestep(mid, 0), axis=0)
+        molecule.delete(mid)
+        return coords
+
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 def compare_clusters(gen, prevgen, rootdir,
                      varthreshold=5.0, threshold=10.0):
     """
@@ -56,8 +70,15 @@ def compare_clusters(gen, prevgen, rootdir,
                                        "means.pkl"))
     oldvarxs = utils.load(os.path.join(rootdir, "clusters", str(prevgen),
                                        "variance.pkl"))
+
+    if len(varxs.keys()) != 50:
+        print("MISSING KEYS: gen %d" % gen)
+
     validmeans = [m for m in means if np.mean(varxs[m]) < varthreshold]
     validoldmeans = [m for m in oldmeans if np.mean(oldvarxs[m]) < varthreshold]
+
+    # Get + load bound state
+    boundcoords = get_bound_state(rootdir)
 
     connecteds = []
     for m in validmeans:
@@ -66,7 +87,9 @@ def compare_clusters(gen, prevgen, rootdir,
         for mm in validoldmeans:
             rmsd = np.sqrt(np.sum((means[m] - oldmeans[mm])**2, axis=0))
             if np.all(rmsd < bestrmsd):
-                candidate = (mm, m)
+                brms = np.mean(np.sqrt(np.sum((means[m]-boundcoords)**2,
+                                              axis=0)))
+                candidate = (mm, m, brms)
                 bestrmsd = rmsd
         if candidate:
             connecteds.append(candidate)
@@ -74,83 +97,6 @@ def compare_clusters(gen, prevgen, rootdir,
     return connecteds
 
 #==============================================================================
-
-#jdef plot_cluster_progress(config, mingen, maxgen):
-#j    """
-#j    Plots the cluster progress, using all available data
-#j
-#j    Args:
-#j        config (str): Path to configuration file for run
-#j
-#j    Returns:
-#j        (fig) Plottable matplotlib figure
-#j    """
-#j    assert(os.path.isfile(config))
-#j    cfg = ConfigParser(interpolation=None)
-#j    cfg.read(config)
-#j    rootdir = cfg.get("system", "rootdir")
-#j
-#j    # Accumulate generations with a variance pickle file
-#j    # TODO: Actually calculate variance for older generations where
-#j    #       it wasn't calculated at the time
-#j#    gen = cfg.getint("production", "generation")
-#j#    ggen = (g for g in range(1, gen+1)
-#j#            if os.path.isfile(os.path.join(rootdir, "clusters", str(gen),
-#j#                                           "variance.pkl")))
-#j
-#j    # Obtain a list of clusters across generations
-#j    prevmsm = utils.load(os.path.join(rootdir, "production", str(mingen),
-#j                                      "mmsm_G%d.pkl" % mingen))
-#j    msm = None
-#j    plot_data = { k : [] for k in range(mingen, maxgen) }
-#j    counter = 0 # DEBUG
-#j
-#j    for g in range(mingen, maxgen):
-#j        msm = utils.load(os.path.join(rootdir, "production", str(g+1),
-#j                                      "mmsm_G%d.pkl" % (g+1)))
-#j        result = compare_clusters(gen=g+1, prevgen=g, rootdir=rootdir)
-#j        counter += len(result)
-#j        #print("Gen: %d result %s" % (g, result))
-#j
-#j        # Aggregate and get populations
-#j        for r in result:
-#j            l1 = prevmsm.inverse_transform([r[0]])[0][0]
-#j            l2 = msm.inverse_transform([r[1]])[0][0]
-#j
-#j#            if g == mingen: # First run, init lists of lists
-#j#                plot_data[g].append([prevmsm.populations_[l1],
-#j#                                     msm.populations_[l2]])
-#j#                continue
-#j
-#j            for gstart in plot_data.values():
-#j                if not len(gstart):
-#j                    plot_data[g].append([prevmsm.populations_[l1],
-#j                                         msm.populations_[l2]])
-#j
-#j                for p in gstart:
-#j                    if p[-1] == prevmsm.populations_[l1]:
-#j                        p.append(msm.populations_[l2])
-#j                        break
-#j                #else:
-#j                #    plot_data[g].append([prevmsm.populations_[l1],
-#j                #                         msm.populations_[l2]])
-#j
-#j        prevmsm = msm
-#j
-#j    real_data = { k : set() for k in range(mingen, maxgen) }
-#j    for g, d in plot_data.items():
-#j        for x in d:
-#j            real_data[g].add(tuple(x))
-#j
-#j    return real_data
-#j    print("should be %d is %d" % (counter, sum(len(p) for p in plot_data.values())))
-#j
-#j    # Generate plot
-#j    for mg, data in plot_data.items():
-#j        for d in data:
-#j            plt.plot(range(mg, mg+len(d)), d)
-#j
-#j#==============================================================================
 
 def plot_cluster_progress(config, mingen, maxgen):
     """
@@ -176,7 +122,7 @@ def plot_cluster_progress(config, mingen, maxgen):
 #                                           "variance.pkl")))
 
     # Obtain a list of clusters across generations
-    plot_data = { k : [] for k in range(mingen, maxgen+1) }
+    plot_data = { k : [] for k in range(mingen+1, maxgen+1) }
     counter = 0 # DEBUG
 
     # Initialize array with first found cluster set
@@ -199,15 +145,14 @@ def plot_cluster_progress(config, mingen, maxgen):
 
             for biglist in plot_data.values():
                 for entry in biglist:
-                    if entry[-1] == prevmsm.populations_[l1]:
-                        entry.append(msm.populations_[l2])
+                    if entry[-1][0] == prevmsm.populations_[l1]:
+                        entry.append((msm.populations_[l2], r[2]))
                         appended.append(l2)
                         counter += 1
-                        break # TODO duplicates???
 
         # Handle entries that have no correspondence with previous generation
         for c in [_ for _  in msm.mapping_.values() if _ not in appended]:
-            plot_data[g].append([msm.populations_[c]])
+            plot_data[g].append([ (msm.populations_[c], 100.0) ])
             counter += 1
         prevmsm = msm
 
