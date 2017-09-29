@@ -633,7 +633,8 @@ class DensitySampler(object):
         # Start the graph in a new process
         # It should have a new socket to X rather than sharing this one's...
         ON_POSIX = 'posix' in sys.builtin_module_names
-        p = Popen(["/home/robin/Work/Code/beak/beak/msm/display_msm.py",
+        # TODO make this more independent
+        p = Popen(["/home/robin/Work/Code/beak/beak/visualize/display_msm.py",
                    self.msmname
                    ],
                    stdout=PIPE,

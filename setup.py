@@ -3,7 +3,7 @@ from distutils.core import setup
 import os
 import sys
 
-packages = ['beak', 'beak.render', 'beak.analyze', 'beak.msm']
+packages = ['beak', 'beak.render', 'beak.analyze', 'beak.msm', 'beak.visualize']
 scripts = ['beak/reimage']
 package_data = {
         }
