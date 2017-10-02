@@ -272,7 +272,8 @@ def dump(thing, filename):
     """
     Provide load and dump together for simplicity
     """
-    return pickle.dump(thing, open(filename, 'wb'))
+    return pickle.dump(thing, open(filename, 'wb'),
+                       protocol=pickle.HIGHEST_PROTOCOL)
 
 #==============================================================================
 
