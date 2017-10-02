@@ -384,6 +384,14 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
         chunksize = int(len(self.prodfiles) / nproc + 0.5) # Round up
         nligs = len(self.clusters) // len(self.prodfiles)
 
+        # Check featurization is sane
+        # NOTE this assumes number of ligands is constant.
+        if len(self.clusters)*nligs != len(self.prodfiles):
+            raise ValueError("Cluster length %d non-integer multiple of"
+                             " prodfile length %d" % (len(self.clusters),
+                                                      len(self.prodfiles)))
+
+
         results = Queue()
         workers = []
         for i in range(nproc):
