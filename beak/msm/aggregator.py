@@ -386,7 +386,7 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
 
         # Check featurization is sane
         # NOTE this assumes number of ligands is constant.
-        if len(self.clusters)*nligs != len(self.prodfiles):
+        if len(self.clusters) % len(self.prodfiles) != 0:
             raise ValueError("Cluster length %d non-integer multiple of"
                              " prodfile length %d" % (len(self.clusters),
                                                       len(self.prodfiles)))
