@@ -90,9 +90,11 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
         if "prmtop" in refname:
             self.refid = molecule.load("parm7", refname,
                                        "crdbox", refname.replace("prmtop", "inpcrd"))
+            self.aselref = atomsel(self.refsel, molid=self.refid)
         elif "psf" in refname:
             self.refid = molecule.load("psf", refname,
                                        "pdb", refname.replace("psf", "pdb"))
+            self.aselref= atomsel(self.psfsel, molid=self.refid)
         else:
             raise ValueError("Unknown format of reference file %s" % refname)
 
@@ -104,8 +106,6 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
         # Sanity check there are actually production files to process
         if not self.prodfiles:
             raise ValueError("No trajectory files to process")
-
-        self.aselref = atomsel(self.refsel, molid=self.refid)
 
     #==========================================================================
 
