@@ -1,7 +1,6 @@
 """
 Contains functionality for loading project-specific datasets
 """
-from __future__ import print_function
 import os
 import numpy as np
 import random
@@ -15,7 +14,6 @@ from beak.msm import utils
 from beak.msm.utils import load
 from subprocess import PIPE, Popen
 from threading import Thread
-from queue import Queue, Empty # Python 3 queue
 from vmd import evaltcl, molecule, molrep, atomsel
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -333,14 +331,14 @@ class ClusterSampler(object):
             #atomsel("all", molid=a).set("user", self.rmsds[int(nam)])
 
             molrep.delrep(a, 0)
-            molrep.addrep(a, style="NewRibbons", material="Opaque",
+            molrep.addrep(a, style="NewRibbons", material="AOShiny",
                           color="User", selection="protein and not "
                           "same fragment as (resname %s)"
                           % " ".join(self.ligands))
             if len(self.molids) > 1:
                 molrep.set_visible(a, molrep.num(a)-1, False)
             molrep.set_scaleminmax(a, molrep.num(a)-1, 0, 2.)
-            molrep.addrep(a, style="Licorice", material="Opaque",
+            molrep.addrep(a, style="Licorice", material="AOChalky",
                           selection="noh and same fragment as "
                                     "(resname %s)" % " ".join(self.ligands),
                           color="User")
@@ -447,7 +445,6 @@ class DensitySampler(object):
         self.topology = kwargs.get("topology")
 
         # Multithreaded updates
-        self._queue = Queue()
         self._threads = []
 
     #==========================================================================
@@ -556,7 +553,7 @@ class DensitySampler(object):
         molrep.addrep(m2, style="Licorice 0.3 12.0 12.0",
                       selection="noh and same fragment as residue %d"
                                 % ligands[ligidx],
-                      color="User", material="Opaque")
+                      color="User", material="AOChalky")
         molrep.set_colorupdate(m2, molrep.num(m2)-1, True)
         molrep.set_scaleminmax(m2, molrep.num(m2)-1, 0., 1.)
         evaltcl("mol drawframes %d %d 0:%d" % (m2, molrep.num(m2)-1,
@@ -610,22 +607,6 @@ class DensitySampler(object):
 
     #==========================================================================
 
-    def _dequeue_output(self, queue, enquer):
-        while enquer.isAlive():
-            #time.sleep(0.05)
-            #try: line = queue.get_nowait()
-            try:
-                sys.stdout.flush()
-                line = queue.get(timeout=0.05)
-                sys.stdout.flush()
-            except Empty:
-                #time.sleep(0.05)
-                continue
-            data = int(line.decode("utf-8"))
-            self.show_cluster(data)
-
-    #==========================================================================
-
     def graph_msm(self):
         # Hide all clusters to start
         for cluster in self.molids:
@@ -639,15 +620,10 @@ class DensitySampler(object):
                    ],
                    stdout=PIPE,
                   bufsize=1, close_fds=ON_POSIX)
-        #q = Queue()
         t1 = Thread(target=self._enqueue_output, args=(p, ))
         t1.daemon = True
         t1.start()
         self._threads.append(t1)
-
-        #t2 = Thread(target=self._dequeue_output, args=(q, t1))
-        #t2.daemon = True
-        #t2.start()
 
     #==========================================================================
 
