@@ -380,7 +380,8 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
         Starts parallel calculation jobs. Does work with a pool of cluster
         density workers, with trajectories divided up evenly between them.
         """
-        nproc = int(os.environ.get("SLURM_NTASKS", "8"))
+        nproc = min(int(os.environ.get("SLURM_NTASKS", "8")),
+                    len(self.prodfiles))
         chunksize = int(len(self.prodfiles) / nproc + 0.5) # Round up
         nligs = len(self.clusters) // len(self.prodfiles)
 
