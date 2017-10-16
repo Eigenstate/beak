@@ -45,12 +45,13 @@ def save_features_h5(dataset, filename, num_ligands=0, trajfiles=None):
 
 #==============================================================================
 
-def load_features_h5(filename):
+def load_features_h5(filename, maxframes=None):
     """
     Loads a feature set from an hdf5 file
 
     Args:
         filename (str): Filename to load
+        maxframes (int): Maximum frames to load. If None, will load all frames.
 
     Returns:
         (list of ndarray) Loaded features
@@ -59,7 +60,10 @@ def load_features_h5(filename):
     h5f = h5py.File(filename, 'r')
     feated = []
     for i in sorted(h5f.keys(), key=int):
-        feated.append(h5f[i][:])
+        if maxframes is not None:
+            feated.append(h5f[i][:maxframes])
+        else:
+            feated.append(h5f[i][:])
     h5f.close()
 
     return feated
