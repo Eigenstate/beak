@@ -10,6 +10,7 @@ import re
 import subprocess
 import sys
 import itertools
+from multiprocessing import Pool
 from vmd import molecule, atomsel
 
 #==============================================================================
@@ -132,9 +133,14 @@ def reimage(psf, revision, skip, alleq, align, stripmask=None):
         raise IOError("No replicates found in directory %s"
                       % os.path.join("production", revision))
 
-    for replicate in dirs:
+    # Wrapper for multiprocessing
+    def reimage_wrapper(replicate):
         reimage_single_dir(psf, replicate, revision, skip, alleq, align,
                            stripmask)
+
+    p = Pool(int(os.environ.get("SLURM_NTASKS", "1")))
+    p.map(reimage_wrapper, dirs)
+    p.close()
 
 #==============================================================================
 
