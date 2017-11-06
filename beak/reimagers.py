@@ -133,13 +133,9 @@ def reimage(psf, revision, skip, alleq, align, stripmask=None):
         raise IOError("No replicates found in directory %s"
                       % os.path.join("production", revision))
 
-    # Wrapper for multiprocessing
-    def reimage_wrapper(replicate):
-        reimage_single_dir(psf, replicate, revision, skip, alleq, align,
-                           stripmask)
-
     p = Pool(int(os.environ.get("SLURM_NTASKS", "1")))
-    p.map(reimage_wrapper, dirs)
+    p.starmap(reimage_single_dir, [(psf, replicate, revision, skip, alleq,
+                                    align, stripmask) for replicate in dirs])
     p.close()
 
 #==============================================================================
