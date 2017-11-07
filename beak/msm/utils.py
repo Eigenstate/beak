@@ -9,9 +9,69 @@ import h5py
 import random
 import numpy as np
 from configparser import RawConfigParser
-from msmbuilder.msm import MarkovStateModel
-from msmbuilder.tpt import mfpts
 from vmd import atomsel, molecule
+
+#==============================================================================
+
+def dump_tica_h5(tica, filename):
+    """
+    Dumps a tica object to a h5 file that can be loaded with load_tica_h5.
+    This is because pickling it results in crazy huge files with lots
+    of memory usage
+
+    Args:
+        tica (tICA): tICA object to dump
+        filename (str): Filename to save as
+    """
+
+    h5f = h5py.File(filename, 'w-', libver="latest")
+    for attribute in ["n_features", "n_components",
+                      "n_observations_", "n_sequences_",
+                      "_outer_0_to_T_lagged", "_sum_0_to_TminusTau",
+                      "_sum_tau_to_T", "_sum_0_to_T",
+                      "_outer_0_to_TminusTau", "_outer_offset_to_T"]:
+
+        data = getattr(tica, attribute)
+        shape = (1,) if isinstance(data, int) else data.shape
+        dtype = int if isinstance(data, int) else data.dtype
+        h5f.create_dataset(name=attribute,
+                           shape=shape,
+                           dtype=dtype,
+                           data=data)
+
+    h5f.close()
+
+#==============================================================================
+
+def load_tica_h5(filename):
+    """
+    Loads a tica dataset from the compact h5 format
+
+    Args:
+        filename (str): File to load
+
+    Returns:
+        (tICA object): The tICA object
+    """
+    from msmbuilder.decomposition import tICA
+
+    # Extract data from the h5 file
+    # Handle array types and int types differently
+    h5f = h5py.File(filename, 'r')
+    tica = tICA()
+    for attribute, data in h5f.items():
+        if len(data) == 1:
+            setattr(tica, attribute, data[0])
+        else:
+            newdata = np.empty(data.shape, dtype=data.dtype)
+            setattr(tica, attribute, newdata)
+            data.read_direct(newdata)
+
+    # Set some attributes ourselves
+    tica._initialized = True
+    tica._is_dirty = True
+
+    return tica
 
 #==============================================================================
 
@@ -30,7 +90,7 @@ def save_features_h5(dataset, filename, num_ligands=0, trajfiles=None):
         True on sucess
     """
 
-    h5f = h5py.File(filename, 'w-') # w- means fail on existence
+    h5f = h5py.File(filename, 'w-', libver="latest") # w- means fail on existence
     for i, fset in enumerate(dataset):
         h5f.create_dataset(name=str(i),
                            shape=fset.shape,
@@ -320,6 +380,7 @@ def generate_truelabeled_msm(truelabels, length, lag):
     Returns:
         (MarkovStateModel): the model
     """
+    from msmbuilder.msm import MarkovStateModel
     msm = MarkovStateModel(lag_time=lag,
                            reversible_type="transpose",
                            ergodic_cutoff="off",
@@ -365,6 +426,7 @@ def get_mfpt_from_solvent(msm, sinks):
     Returns:
         Fastest time to get from solvent to any cluster in sinks
     """
+    from msmbuilder.tpt import mfpts
     data = mfpts(msm, sinks=None)[:][sinks]
     return np.min(data, axis=0)
 
