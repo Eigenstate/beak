@@ -8,7 +8,7 @@ import pickle
 import h5py
 import random
 import numpy as np
-from configparser import RawConfigParser
+from configparser import ConfigParser
 from vmd import atomsel, molecule
 
 #==============================================================================
@@ -201,12 +201,12 @@ def load_trajectory(filename, **kwargs):
     # Set up alignment stuff. Prefer to use config file
     if kwargs.get("config"):
         if isinstance(kwargs.get("config"), str):
-            config = RawConfigParser()
+            config = ConfigParser(interpolation=None)
             config.read(kwargs.get("config"))
-        elif isinstance(kwargs.get("config"), RawConfigParser):
+        elif isinstance(kwargs.get("config"), ConfigParser):
             config = kwargs.get("config")
         else:
-            raise ValueError("%s is not a string or RawConfigParser"
+            raise ValueError("%s is not a string or ConfigParser"
                              % kwargs.get("config"))
         if topology is None:
             topology = get_topology(filename,
