@@ -24,19 +24,17 @@ def dump_tica_h5(tica, filename):
         filename (str): Filename to save as
     """
 
-    h5f = h5py.File(filename, 'w-', libver="latest")
+    h5f = h5py.File(filename, 'w', libver="latest")
     for attribute in ["n_features", "n_components",
                       "n_observations_", "n_sequences_",
                       "_outer_0_to_T_lagged", "_sum_0_to_TminusTau",
                       "_sum_tau_to_T", "_sum_0_to_T",
                       "_outer_0_to_TminusTau", "_outer_offset_to_T"]:
-
         data = getattr(tica, attribute)
-        shape = (1,) if isinstance(data, int) else data.shape
-        dtype = int if isinstance(data, int) else data.dtype
         h5f.create_dataset(name=attribute,
-                           shape=shape,
-                           dtype=dtype,
+                           shape=(1,) if np.isscalar(data) else data.shape,
+                           dtype=int if np.isscalar(data) else data.dtype,
+                           compression=None if np.isscalar(data) else "gzip",
                            data=data)
 
     h5f.close()
