@@ -13,7 +13,7 @@ from vmd import atomsel, molecule
 
 #==============================================================================
 
-def dump_tica_h5(tica, filename):
+def save_tica_h5(tica, filename, overwrite=False):
     """
     Dumps a tica object to a h5 file that can be loaded with load_tica_h5.
     This is because pickling it results in crazy huge files with lots
@@ -22,9 +22,10 @@ def dump_tica_h5(tica, filename):
     Args:
         tica (tICA): tICA object to dump
         filename (str): Filename to save as
+        overwrite (bool): Will allow overwriting of an existing file
     """
 
-    h5f = h5py.File(filename, 'w', libver="latest")
+    h5f = h5py.File(filename, 'w' if overwrite else 'w-', libver="latest")
     for attribute in ["n_features", "n_components",
                       "n_observations_", "n_sequences_",
                       "_outer_0_to_T_lagged", "_sum_0_to_TminusTau",
@@ -73,7 +74,8 @@ def load_tica_h5(filename):
 
 #==============================================================================
 
-def save_features_h5(dataset, filename, num_ligands=0, trajfiles=None):
+def save_features_h5(dataset, filename, num_ligands=0, trajfiles=None,
+                     overwrite=False):
     """
     Saves the given feature set as an hdf5 file
 
@@ -83,12 +85,14 @@ def save_features_h5(dataset, filename, num_ligands=0, trajfiles=None):
         num_ligands (int): Number of ligands in the system
         trajfiles (list of str): Filenames of trajectories. This lets the
             "filename" attribute be populated
+        overwrite (bool): Allow a file with the same name to be clobbered
 
     Returns:
         True on sucess
     """
 
-    h5f = h5py.File(filename, 'w-', libver="latest") # w- means fail on existence
+    h5f = h5py.File(filename, 'w' if overwrite else 'w-',
+                    libver="latest") # w- means fail on existence
     for i, fset in enumerate(dataset):
         h5f.create_dataset(name=str(i),
                            shape=fset.shape,
