@@ -2,7 +2,6 @@
 Contains classes for aggregating clusters into useful files so that
 all trajectory doesn't have to be loaded.
 """
-from __future__ import print_function
 import os
 import sys
 import numpy as np
@@ -475,6 +474,10 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
         Args:
             outdir (str): Output directory in which to put dx map files
         """
+        # Make output directory if not existing
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir)
+
         data = self._start_workers()
 
         # This saves the densities in a pool
