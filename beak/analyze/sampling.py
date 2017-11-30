@@ -44,9 +44,16 @@ def get_indices(residue, molid, density):
 
     Returns:
         (list of int): [[xmin, xmax], [ymin, ymax], [zmin,zmax]]
+            or None if the residue is out of bounds on the grid
     """
     indices = []
+
     for aid, axis in enumerate(get_box(residue, molid)):
+        # Sanity check it's in the box at all
+        if axis[0] > np.max(density.edges[aid]) or \
+           axis[1] < np.min(density.edges[aid]):
+            return None
+
         minval = np.min(np.where(density.edges[aid] > axis[0])) - 1
         maxval = np.max(np.where(density.edges[aid] < axis[1])) + 1
         indices.append([minval, maxval])
@@ -70,6 +77,11 @@ def integrate(residue, molid, density):
     """
 
     indices = get_indices(residue, molid, density)
+
+    # If it's out of bounds, just return 0
+    if indices is None:
+        return 0.
+
     # Use numpy fancy indexing to get a view into the grid
     total = np.sum(density.grid[indices[0][0]:indices[0][1],
                                 indices[1][0]:indices[1][1],
@@ -91,8 +103,15 @@ def get_subgrid(residue, molid, density):
 
     Returns:
         (Grid): Subgrid covered by residue
+
+    Raises:
+        ValueError: if residue is not covered by the grid
     """
     indices = get_indices(residue, molid, density)
+
+    if indices is None:
+        raise ValueError("Residue is not covered by the grid!")
+
     # Use numpy fancy indexing to get a view into the grid
     subgrid = density.grid[indices[0][0]:indices[0][1],
                            indices[1][0]:indices[1][1],
