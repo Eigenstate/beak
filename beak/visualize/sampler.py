@@ -381,7 +381,7 @@ class DensitySampler(object):
         Args:
             configfile (str): Configuration file to read generation and
                 file info from
-            filenames (list of str): Production files
+            prodfiles (list of str): Production files
             clustdir (str): Directory with cluster dx files
             clusters (str): Cluster data pickle path
             msm (str): MSM pickle path
