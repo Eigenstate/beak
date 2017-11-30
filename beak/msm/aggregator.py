@@ -381,7 +381,7 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
         """
         nproc = min(int(os.environ.get("SLURM_NTASKS", "8")),
                     len(self.prodfiles))
-        chunksize = int(len(self.prodfiles) / nproc + 0.5) # Round up
+        chunksize = len(self.prodfiles) // nproc # We handle extras later
         nligs = len(self.clusters) // len(self.prodfiles)
 
         # Check featurization is sane
@@ -391,21 +391,27 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
                              " prodfile length %d" % (len(self.clusters),
                                                       len(self.prodfiles)))
 
-
         results = Queue()
         workers = []
+        idx = 0
         for i in range(nproc):
-            idx = i * chunksize
+
+            # Divide up work as evenly as possible
+            idiff = chunksize
+            if i < len(self.prodfiles) % nproc:
+                idiff += 1
+
             jobber = Process(target=run_cluster_worker,
                              args=(results,
-                                   self.prodfiles[idx:idx+chunksize],
-                                   self.clusters[idx*nligs:(idx+chunksize)*nligs]
+                                   self.prodfiles[idx:idx+idiff],
+                                   self.clusters[idx*nligs:(idx+idiff)*nligs]
                                   ),
                              kwargs=dict(self.kwargs, accumulate_only=True,
                                          name=str(i)),
                              daemon=True)
             jobber.start()
             workers.append(jobber)
+            idx += idiff
 
         # Wait for workers to finish and fill the queue
         for w in workers:
