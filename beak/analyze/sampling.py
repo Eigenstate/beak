@@ -73,7 +73,7 @@ def integrate(residue, molid, density):
         density (Grid): gridData Grid containing ligand density to integrate
 
     Returns:
-        (float): Sum of grid squares residsue covers
+        (float): Sum of grid squares residue covers
     """
 
     indices = get_indices(residue, molid, density)
@@ -119,5 +119,37 @@ def get_subgrid(residue, molid, density):
     edges = [density.edges[i][e[0]:e[1]] for i, e in enumerate(indices)]
 
     return Grid(grid=subgrid, edges=edges)
+
+#===============================================================================
+
+def integrate_no_doublecounting(selection, molid, density):
+    """
+    Sums the values of the grid covering the given selection. Grid cells
+    are not double counted even if multiple molecules in the selection
+    cover them.
+
+    Use a MaskedArray view onto the original grid to simplify summation.
+
+    Args:
+        selection (str): Atom selection to integrate
+        molid (int): VMD molecule ID
+        density (Grid): Grid to integrate
+
+    Returns:
+        (float): Sum of grid squares covered by atom selection
+    """
+    sumgrid = np.ma.MaskedArray(data=density.grid, copy=False, fillvalue=0.0,
+                                mask=np.ones(density.grid.shape))
+    mask = np.ma.getmask(sumgrid)
+    residues = set(atomsel(selection, molid=molid).get("residue"))
+
+    for res in residues:
+        indices = get_indices(res, molid, density)
+        if indices is not None:
+            mask[indices[0][0]:indices[0][1],
+                 indices[1][0]:indices[1][1],
+                 indices[2][0]:indices[2][1]] = False
+
+    return np.sum(sumgrid)
 
 #===============================================================================
