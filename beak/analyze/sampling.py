@@ -153,3 +153,30 @@ def integrate_no_doublecounting(selection, molid, density):
     return np.sum(sumgrid)
 
 #===============================================================================
+
+def get_control_value(selection, molid, density):
+    """
+    Returns the value of an integral assuming ligands are distributed
+    completely evenly on the grid
+
+    Args:
+        selection (str): Atom selection to integrate
+        molid (int): VMD molecule ID
+        density (Grid): Grid of correct shape. Will not be altered
+
+    Returns:
+        (float): Sum of grid squares covered by atom selection, assuming
+            constant ligand density
+    """
+
+    # Assume ligands distributed completely evenly
+    g = density.grid
+    g2 = np.copy(density.grid)
+    g2.fill(1./len(np.ravel(g2)))
+
+    density.grid = g2
+    result = integrate_no_doublecounting(selection, molid, density)
+    density.grid = g
+    return result
+
+#===============================================================================
