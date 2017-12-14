@@ -154,7 +154,15 @@ def integrate_no_doublecounting(selection, molid, density):
 
 #===============================================================================
 
-def get_control_value(selection, molid, density):
+def integrate_each_residue(molid, density):
+    return [integrate_no_doublecounting("residue %d" % r,
+                                        molid=molid,
+                                        density=density)
+            for r in sorted(set(atomsel("all", molid).get("residue")))]
+
+#===============================================================================
+
+def get_control_value(molid, density):
     """
     Returns the value of an integral assuming ligands are distributed
     completely evenly on the grid
@@ -175,7 +183,8 @@ def get_control_value(selection, molid, density):
     g2.fill(1./len(np.ravel(g2)))
 
     density.grid = g2
-    result = integrate_no_doublecounting(selection, molid, density)
+    #result = integrate_no_doublecounting(selection, molid, density)
+    result = integrate_each_residue(molid, density)
     density.grid = g
     return result
 
