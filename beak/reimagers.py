@@ -152,19 +152,24 @@ def reimage_single_dir(topology, replicate, revision, skip, alleq, align,
     prods = sorted(glob(os.path.join(proddir, "Prod_[0-9]*.nc")),
                    key=lambda x: int(x.replace(os.path.join(proddir, "Prod_"),
                                                "").replace(".nc", "")))
-    if not len(prods):
+    if check_empty(os.path.join(proddir, "Eq_6.nc")):
         print("NO production simulation in Rev %s Rep %s" % (revision, replicate))
         return
 
     # Get number of last production file
-    lastnum = int(prods[-1].replace(os.path.join(proddir, "Prod_"), "").replace(".nc", ""))
+    if len(prods):
+        lastnum = prods[-1].replace(os.path.join(proddir,
+                                                 "Prod_"), "").replace(".nc", "")
+    else:
+        lastnum = "Eq6"
+
     # If output file already exists, continue
     if alleq:
-        ofile = os.path.join(proddir, "Reimaged_Eq1_to_%d_skip_%s.nc" % (lastnum, skip))
-        ofile2 = os.path.join(proddir, "Reimaged_strip_Eq1_to_%d_skip_%s.nc" % (lastnum, skip))
+        ofile = os.path.join(proddir, "Reimaged_Eq1_to_%s_skip_%s.nc" % (lastnum, skip))
+        ofile2 = os.path.join(proddir, "Reimaged_strip_Eq1_to_%s_skip_%s.nc" % (lastnum, skip))
     else:
-        ofile = os.path.join(proddir, "Reimaged_Eq6_to_%d_skip_%s.nc" % (lastnum, skip))
-        ofile2 = os.path.join(proddir, "Reimaged_strip_Eq6_to_%d_skip_%s.nc" % (lastnum, skip))
+        ofile = os.path.join(proddir, "Reimaged_Eq6_to_%s_skip_%s.nc" % (lastnum, skip))
+        ofile2 = os.path.join(proddir, "Reimaged_strip_Eq6_to_%s_skip_%s.nc" % (lastnum, skip))
     if os.path.isfile(ofile) and os.path.isfile(ofile2):
         print("EXISTS reimaged file for Rev %s Rep %s" % (revision, replicate))
         return
@@ -206,12 +211,8 @@ def reimage_single_dir(topology, replicate, revision, skip, alleq, align,
             tempfile.write("trajin %s 1 last %d\n" % (e, int(skip)*8))
 
     # Last equilibration in
-    if not check_empty(os.path.join(proddir, "Eq_6.nc")):
-        tempfile.write("trajin %s 1 last %d\n" % (os.path.join(proddir, "Eq_6.nc"),
-                                                  int(skip)*8))
-    else:
-        prods = [] # Don't write out production files if no Eq_6 present
-        ofile = ofile.replace("_to_%d_skip" % lastnum, "_to_Eq5_skip")
+    tempfile.write("trajin %s 1 last %d\n" % (os.path.join(proddir, "Eq_6.nc"),
+                                              int(skip)*8))
 
     # Read in production data, reimaged
     for p in prods:
