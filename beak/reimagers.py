@@ -48,10 +48,12 @@ def check_empty(filename):
     Args:
         filename (str): Path to the netcdf file to check
     Returns:
-        (bool): True if there were no frames
+        (bool): True if there were no frames or file is missing
     """
+    # Say the file is empty if it doesn't exist
     if not os.path.isfile(filename):
-        return False
+        return True
+
     checker = subprocess.Popen(["ncdump", "-h", filename],
                                stdout=subprocess.PIPE)
     output = checker.stdout.read()
@@ -152,9 +154,10 @@ def reimage_single_dir(topology, replicate, revision, skip, alleq, align,
     prods = sorted(glob(os.path.join(proddir, "Prod_[0-9]*.nc")),
                    key=lambda x: int(x.replace(os.path.join(proddir, "Prod_"),
                                                "").replace(".nc", "")))
+
     if check_empty(os.path.join(proddir, "Eq_6.nc")):
         print("NO production simulation in Rev %s Rep %s" % (revision, replicate))
-        return
+        return None
 
     # Get number of last production file
     if len(prods):
@@ -237,6 +240,7 @@ def reimage_single_dir(topology, replicate, revision, skip, alleq, align,
     tempfile.write("go\n")
     tempfile.close()
 
+    # Returns 0 on success
     return subprocess.call("%s/bin/cpptraj -p %s -i %s/tempfile" %
                            (os.environ['AMBERHOME'], topology, proddir),
                            shell=True)
