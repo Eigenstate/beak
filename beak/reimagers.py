@@ -82,7 +82,7 @@ def get_protein_residues(topology):
         field = "residue"
 
     ace = min(atomsel('resname ACE', molid).get(field))
-    nma = min(atomsel('resname NMA', molid).get(field))
+    nma = min(atomsel('resname NMA NME', molid).get(field))
 
     molecule.delete(molid)
     return "%d-%d" % (ace, nma)
