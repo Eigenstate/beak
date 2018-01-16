@@ -8,7 +8,6 @@ import sys
 import time
 from configparser import ConfigParser
 from glob import glob
-from socket import gethostname
 from beak.msm import utils
 
 from beak.msm.utils import load
@@ -43,6 +42,12 @@ class Sampler(object):
         self.config = ConfigParser(interpolation=None)
         self.config.read(configfile)
 
+        # If on my computer, handle Sherlock mount paths
+        if os.environ.get("SHERLOCK") is None:
+            for var in self.config["system"]:
+                self.config["system"]["var"].replace("/scratch/PI/rondror/",
+                                                     "/mnt/sherlock/scratch/")
+
         self.ligands = self.config["system"]["ligands"].split(',')
         self.num_ligands = self.config.getint("system", "num_ligands")
         self.generation = generation
@@ -51,11 +56,6 @@ class Sampler(object):
         assert generation <= self.config.getint("production", "generation")
         self.nreps = self.config.getint("model", "samplers")
         self.dir = self.config["system"]["rootdir"]
-        if gethostname() == "platyrhynchos":
-            print("DIR: %s" % self.dir)
-            self.dir = self.dir.replace("/scratch/PI/rondror/rbetz/",
-                                        "/home/robin/Work/Projects/thesis/sherlock/")
-            print("DIR: %s" % self.dir)
         self.name = self.config["system"]["jobname"]
         self.stride = stride
         self.sampstride = sampstride
@@ -226,6 +226,12 @@ class ClusterSampler(object):
         self.config = ConfigParser(interpolation=None)
         self.config.read(configfile)
 
+        # If on my computer, handle Sherlock mount paths
+        if os.environ.get("SHERLOCK") is None:
+            for var in self.config["system"]:
+                self.config["system"]["var"].replace("/scratch/PI/rondror/",
+                                                     "/mnt/sherlock/scratch/")
+
         self.ligands = self.config["system"]["ligands"].split(',')
         self.num_ligands = self.config.getint("system", "num_ligands")
         self.generation = generation
@@ -233,9 +239,6 @@ class ClusterSampler(object):
         assert generation <= self.config.getint("production", "generation")
         self.nreps = self.config.getint("model", "samplers")
         self.dir = self.config["system"]["rootdir"]
-        if gethostname() == "platyrhynchos":
-            self.dir = self.dir.replace("/scratch/PI/rondror/rbetz/",
-                                        "/home/robin/Work/Projects/thesis/sherlock/")
         self.name = self.config["system"]["jobname"]
 
         # List all of the filenames so we can look them up later
@@ -394,6 +397,12 @@ class DensitySampler(object):
 
         self.config = ConfigParser(interpolation=None)
         self.config.read(configfile)
+
+        # If on my computer, handle Sherlock mount paths
+        if os.environ.get("SHERLOCK") is None:
+            for var, val in self.config["system"].items():
+                self.config["system"][var] = val.replace("/scratch/PI/rondror/",
+                                                         "/mnt/sherlock/scratch/")
 
         self.ligands = self.config["system"]["ligands"].split(',')
         self.nligs = self.config.getint("system", "num_ligands")
