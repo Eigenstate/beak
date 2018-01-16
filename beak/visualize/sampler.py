@@ -45,8 +45,8 @@ class Sampler(object):
         # If on my computer, handle Sherlock mount paths
         if os.environ.get("SHERLOCK") is None:
             for var in self.config["system"]:
-                self.config["system"]["var"].replace("/scratch/PI/rondror/",
-                                                     "/mnt/sherlock/scratch/")
+                self.config["system"][var].replace("/scratch/PI/rondror/",
+                                                   "/mnt/sherlock/scratch/")
 
         self.ligands = self.config["system"]["ligands"].split(',')
         self.num_ligands = self.config.getint("system", "num_ligands")
@@ -229,8 +229,8 @@ class ClusterSampler(object):
         # If on my computer, handle Sherlock mount paths
         if os.environ.get("SHERLOCK") is None:
             for var in self.config["system"]:
-                self.config["system"]["var"].replace("/scratch/PI/rondror/",
-                                                     "/mnt/sherlock/scratch/")
+                self.config["system"][var].replace("/scratch/PI/rondror/",
+                                                   "/mnt/sherlock/scratch/")
 
         self.ligands = self.config["system"]["ligands"].split(',')
         self.num_ligands = self.config.getint("system", "num_ligands")

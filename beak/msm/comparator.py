@@ -188,7 +188,7 @@ def get_cluster_progress(config, mingen, maxgen, filter=True):
     cfg.read(config)
     if os.environ.get("SHERLOCK") is None:
         for var in cfg["system"]:
-            cfg["system"]["var"].replace("/scratch/PI/rondror/",
+            cfg["system"][var].replace("/scratch/PI/rondror/",
                                         "/mnt/sherlock/scratch/")
     rootdir = cfg.get("system", "rootdir")
     boundcoords = get_bound_state(rootdir)
