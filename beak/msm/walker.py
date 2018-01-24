@@ -59,28 +59,22 @@ class NaiveWalker(object):
         # Start all walkers at most populous state
         minpop = msm.inverse_transform(np.argsort(msm.populations_))[0][-1]
         self.start = [minpop] * self.walkers
-        self.sampled = []
-
         self.total = 0
-        self.found = set(self.start)
 
     def walk_once(self):
         for w in range(self.walkers):
             news = self.graph.sample_steps(state=self.start[w],
                                            n_steps=self.nsteps)
-            self.found.update(news)
             self.start[w] = news[-1]
-            self.sampled.append(news)
-
             self.total += self.nsteps
 
     def walk_until(self, findme):
-        while findme not in self.found:
+        while self.graph.times_visited[findme] == 0:
             self.walk_once()
         return self.total
 
     def walk(self):
-        while len(self.found) < self.graph.n_states_:
+        while len(np.where(self.graph.times_visited != 0)[0]):
             self.walk_once()
 
         return self.total
@@ -105,15 +99,11 @@ class AdaptiveWalker(object):
         self.start = [minpop] * self.walkers
         self.sampled = []
         self.total = 0
-        self.found = set(self.start)
 
     def walk_once(self):
-        print("Walking...")
-        sys.stdout.flush()
         for w in range(self.walkers):
             news = self.graph.sample_steps(state=self.start[w],
                                            n_steps=self.nsteps)
-            self.found.update(news)
             self.sampled.append(news)
             self.total += self.nsteps
 
@@ -175,12 +165,12 @@ class AdaptiveWalker(object):
             sys.stdout.flush()
 
     def walk_until(self, findme):
-        while findme not in self.found:
+        while self.graph.times_visited[findme] == 0:
             self.walk_once()
         return self.total
 
     def walk(self):
-        while len(self.found) < self.graph.n_states_:
+        while len(np.where(self.graph.times_visited != 0)[0]):
             self.walk_once()
 
         return self.total
