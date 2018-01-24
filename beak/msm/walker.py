@@ -139,6 +139,7 @@ class AdaptiveWalker(object):
             print("Too few nodes for lumping")
             sys.stdout.flush()
             estmsm = micromsm
+            mclustered = self.sampled
 
         if self.criteria == "hub_scores":
             # Handle too few nodes found
