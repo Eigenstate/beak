@@ -4,7 +4,6 @@ Methods necessary for my hacky fake graph MSMs
 """
 
 import numpy as np
-import sys
 from msmbuilder.msm import MarkovStateModel
 from msmbuilder.lumping import PCCAPlus
 from msmbuilder.tpt import hub_scores
@@ -22,6 +21,8 @@ class FakeMSM(object):
         self.transmat_ = np.zeros((n_states, n_states))
         self.populations_ = np.zeros(n_states)
         self.times_visited = np.zeros(n_states)
+
+    #==========================================================================
 
     def sample_steps(self, state=None, n_steps=100, random_state=None):
         random = check_random_state(random_state)
@@ -61,6 +62,8 @@ class NaiveWalker(object):
         self.start = [minpop] * self.walkers
         self.total = 0
 
+    #==========================================================================
+
     def walk_once(self):
         for w in range(self.walkers):
             news = self.graph.sample_steps(state=self.start[w],
@@ -68,13 +71,33 @@ class NaiveWalker(object):
             self.start[w] = news[-1]
             self.total += self.nsteps
 
+    #==========================================================================
+
     def walk_until(self, findme):
-        while self.graph.times_visited[findme] == 0:
-            self.walk_once()
+        """
+        Check walkers individually, return minimum needed
+        That is, don't count all walker steps in generation that
+        found the bound state. This makes nsteps less discretized
+        """
+        found = False
+        while not found:
+            for w in range(self.walkers):
+                news = self.graph.sample_steps(state=self.start[w],
+                                               n_steps=self.nsteps)
+                if findme in news:
+                    self.total += news.index(findme)+1
+                    found = True
+                    break
+
+            if not found:
+                self.total += (self.nsteps * self.walkers)
+
         return self.total
 
+    #==========================================================================
+
     def walk(self):
-        while len(np.where(self.graph.times_visited != 0)[0]):
+        while np.where(self.graph.times_visited != 0)[0]:
             self.walk_once()
 
         return self.total
@@ -100,13 +123,13 @@ class AdaptiveWalker(object):
         self.sampled = []
         self.total = 0
 
-    def walk_once(self):
-        for w in range(self.walkers):
-            news = self.graph.sample_steps(state=self.start[w],
-                                           n_steps=self.nsteps)
-            self.sampled.append(news)
-            self.total += self.nsteps
+    #==========================================================================
 
+    def rebuild_starts(self):
+        """
+        Constructs the microstate MSM, lumps it, and selects
+        starting points (self.start) for next sampling run
+        """
         micromsm = MarkovStateModel(lag_time=self.lag,
                                     prior_counts=1e-6,
                                     reversible_type="transpose",
@@ -126,8 +149,6 @@ class AdaptiveWalker(object):
                                       ergodic_cutoff="off")
             estmsm.fit(mclustered)
         else:
-            print("Too few nodes for lumping")
-            sys.stdout.flush()
             estmsm = micromsm
             mclustered = self.sampled
 
@@ -135,15 +156,9 @@ class AdaptiveWalker(object):
             # Handle too few nodes found
             if len(estmsm.mapping_) <= 2:
                 self.start = estmsm.inverse_transform(range(len(estmsm.populations_)))[0][:]
-                print("Skipping scoring, too few nodes found: %s" % self.start)
-                sys.stdout.flush()
             else:
-                print("Scoring %d nodes" % len(estmsm.populations_))
-                sys.stdout.flush()
                 scores = hub_scores(estmsm)
                 self.start = estmsm.inverse_transform(np.argsort(scores))[0][:self.walkers]
-                print("Start: %s" % self.start)
-                sys.stdout.flush()
 
         elif self.criteria == "populations":
             self.start = estmsm.inverse_transform(np.argsort(estmsm.populations_))[0][:self.walkers]
@@ -154,23 +169,60 @@ class AdaptiveWalker(object):
         else:
             raise ValueError("invalid criteria %s" % self.criteria)
 
-        # Handle insufficient states having been discovered initially
+        self.pad_starts()
+
+    #==========================================================================
+
+    def pad_starts(self):
+        """
+        Handles insufficient states being discovered to populate a starting
+        state for all walkers from available data.
+        Just pads with randomly selected already found clusters.
+        """
         if len(self.start) < self.walkers:
             missing = self.walkers - len(self.start)
             additionals = np.random.choice(self.start, size=missing)
-            print("Adding %s" % additionals)
             self.start = np.append(self.start, additionals)
-            print("Adding more starters now %s" % len(self.start))
-            print("start: %s" % self.start)
-            sys.stdout.flush()
+
+    #==========================================================================
+
+    def walk_once(self):
+        for w in range(self.walkers):
+            news = self.graph.sample_steps(state=self.start[w],
+                                           n_steps=self.nsteps)
+            self.sampled.append(news)
+            self.total += self.nsteps
+        self.rebuild_starts()
+
+    #==========================================================================
 
     def walk_until(self, findme):
-        while self.graph.times_visited[findme] == 0:
-            self.walk_once()
+        """
+        Check walkers individually, return minimum needed
+        That is, don't count all walker steps in generation that
+        found the bound state. This makes nsteps less discretized
+        """
+        found = False
+        while not found:
+            for w in range(self.walkers):
+                news = self.graph.sample_steps(state=self.start[w],
+                                               n_steps=self.nsteps)
+                self.sampled.append(news)
+                if findme in news:
+                    self.total += news.index(findme)+1
+                    found = True
+                    break
+
+            if not found:
+                self.total += (self.nsteps * self.walkers)
+                self.rebuild_starts()
+
         return self.total
 
+    #==========================================================================
+
     def walk(self):
-        while len(np.where(self.graph.times_visited != 0)[0]):
+        while np.where(self.graph.times_visited != 0)[0]:
             self.walk_once()
 
         return self.total
