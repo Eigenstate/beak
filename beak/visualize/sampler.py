@@ -530,7 +530,7 @@ class DensitySampler(object):
         # ie if it came from a non stripped trajectory we need to load
         # the non stripped topology as an alternate molid for the cluster
         if self.topology is None:
-            topology = utils.get_topology(filename, self.dir)
+            topology = utils.get_topology(filename)
         else:
             topology = self.topology
 

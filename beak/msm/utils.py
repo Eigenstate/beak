@@ -132,20 +132,24 @@ def load_features_h5(filename, maxframes=None):
 
 #==============================================================================
 
-def get_topology(filename, rootdir):
+def get_topology(filename, rootdir=None):
     """
     Returns the psf file corresponding to a given trajectory file,
     using my directory layout. No fallback for older psfs.
 
     Args:
         filename (str): File name of trajectory
-        rootdir (str): Root directory of simulation
+        rootdir (str): Root directory of simulation, or None
+            to guess from the fullpath
 
     Returns:
         (str): File name of corresponding topology. Could be psf or prmtop.
     """
     rep = filename.split('/')[-2]
     gen = filename.split('/')[-3]
+
+    if rootdir is None:
+        rootdir = "/%s" % os.path.join(*os.path.abspath(filename).split('/')[:-4])
 
     # Handle special psf case for stripped trajectories
     if "strip" in filename:
