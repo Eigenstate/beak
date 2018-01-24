@@ -65,10 +65,15 @@ def get_bound_state(rootdir):
         mid = molecule.load("mae", os.path.join(rootdir, "..",
                                                 "bound_5_aligned.mae"))
         mask = vmdnumpy.atomselect(mid, 0, "noh and resname DALP")
+
     elif "trypsin" in rootdir:
-        basedir = os.path.join(rootdir, "..", "..", "prep")
-        mid = molecule.load("psf", os.path.join(basedir, "inp08_3PTB_1lig_lesswat.psf"),
-                            "pdb", os.path.join(basedir, "inp08_3PTB_1lig_lesswat.pdb"))
+        if os.environ.get("SHERLOCK") is None:
+            basedir = "/mnt/sherlock/scratch/rbetz/trypsin/prep/"
+        else:
+            basedir = "/scratch/PI/rondror/rbetz/trypsin/prep/"
+
+        mid = molecule.load("psf", os.path.join(basedir, "inp09_3PTB_bound_lesswat.psf"),
+                            "pdb", os.path.join(basedir, "inp09_3PTB_bound_lesswat.pdb"))
         mask = vmdnumpy.atomselect(mid, 0, "noh and resname BAMI")
 
     if mid:
@@ -188,8 +193,8 @@ def get_cluster_progress(config, mingen, maxgen, filter=True):
     cfg.read(config)
     if os.environ.get("SHERLOCK") is None:
         for var in cfg["system"]:
-            cfg["system"][var].replace("/scratch/PI/rondror/",
-                                        "/mnt/sherlock/scratch/")
+            cfg["system"][var] = cfg["system"][var].replace("/scratch/PI/rondror/",
+                                                            "/mnt/sherlock/scratch/")
     rootdir = cfg.get("system", "rootdir")
     boundcoords = get_bound_state(rootdir)
 
@@ -254,10 +259,9 @@ def plot_cluster_progress(config, mingen, maxgen, filter=True):
         filter (bool): Only show clusters present in most recent generation
     """
     plotme = []
-    x = get_cluster_progress(config, mingen, maxgen, filter=True)
+    x = get_cluster_progress(config, mingen, maxgen, filter=filter)
     first = True
     for d in x:
-        if filter and maxgen not in [x.generation for x in d]: continue # Show only current traces
         plotme.append(Scatter(x=[x.generation for x in d],
                               y=[x.population for x in d],
                               marker=dict(
@@ -275,6 +279,6 @@ def plot_cluster_progress(config, mingen, maxgen, filter=True):
         layout = Layout(yaxis=dict(range=[0,0.01]),
                         xaxis=dict(range=[mingen, maxgen]),
                         showlegend=False)
-    return Figure(Data=plotme, layout=layout)
+    return Figure(data=plotme, layout=layout)
 
 #==============================================================================
