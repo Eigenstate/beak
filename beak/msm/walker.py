@@ -159,9 +159,7 @@ class AdaptiveWalker(object):
             self.start = estmsm.inverse_transform(np.argsort(estmsm.populations_))[0][:self.walkers]
 
         elif self.criteria == "counts":
-            def _count_one(num):
-                return np.sum([len(np.where(c == num)[0]) for c in mclustered])
-            self.start = sorted(range(50), key=_count_one)[:self.walkers]
+            self.start = np.argsort(self.graph.times_visited)[:self.walkers]
 
         else:
             raise ValueError("invalid criteria %s" % self.criteria)
