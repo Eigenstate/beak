@@ -69,6 +69,7 @@ def integrate(residue, molid, density):
 
     Args:
         residue (int, or 3 tuple): Residue number, or list of indices
+            [[xmin, xmax], [ymin, ymax], [zmin,zmax]]
         molid (int): VMD molecule ID
         density (Grid): gridData Grid containing ligand density to integrate
 

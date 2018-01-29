@@ -73,24 +73,28 @@ class NaiveWalker(object):
 
     #==========================================================================
 
-    def walk_until(self, findme):
+    def walk_until(self, findme, sub_generation=False):
         """
         Check walkers individually, return minimum needed
         That is, don't count all walker steps in generation that
         found the bound state. This makes nsteps less discretized
+
+        Args:
+            findme (int): Cluster label to find
+            sub_generation (bool): If mid-generation results should
+                be counted nsteps individually
         """
         found = False
         while not found:
             for w in range(self.walkers):
                 news = self.graph.sample_steps(state=self.start[w],
                                                n_steps=self.nsteps)
-                if findme in news:
+                found = found or findme in news
+                if sub_generation and found:
                     self.total += news.index(findme)+1
-                    found = True
                     break
-
-            if not found:
-                self.total += (self.nsteps * self.walkers)
+                else:
+                    self.total += self.nsteps
 
         return self.total
 
@@ -196,11 +200,16 @@ class AdaptiveWalker(object):
 
     #==========================================================================
 
-    def walk_until(self, findme):
+    def walk_until(self, findme, sub_generation=False):
         """
         Check walkers individually, return minimum needed
         That is, don't count all walker steps in generation that
         found the bound state. This makes nsteps less discretized
+
+        Args:
+            findme (int): Cluster to find
+            sub_generation (bool): If mid-generation results should be
+                individually counted
         """
         found = False
         while not found:
@@ -208,13 +217,15 @@ class AdaptiveWalker(object):
                 news = self.graph.sample_steps(state=self.start[w],
                                                n_steps=self.nsteps)
                 self.sampled.append(news)
-                if findme in news:
+
+                found = found or findme in news
+                if sub_generation and found:
                     self.total += news.index(findme)+1
-                    found = True
                     break
+                else:
+                    self.total += self.nsteps
 
             if not found:
-                self.total += (self.nsteps * self.walkers)
                 self.rebuild_starts()
 
         return self.total
