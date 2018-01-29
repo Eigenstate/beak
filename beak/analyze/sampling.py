@@ -68,7 +68,7 @@ def integrate(residue, molid, density):
     erring on the side of a larger box (minimum box enclosing residue).
 
     Args:
-        residue (int): Residue number
+        residue (int, or 3 tuple): Residue number, or list of indices
         molid (int): VMD molecule ID
         density (Grid): gridData Grid containing ligand density to integrate
 
@@ -76,7 +76,10 @@ def integrate(residue, molid, density):
         (float): Sum of grid squares residue covers
     """
 
-    indices = get_indices(residue, molid, density)
+    if len(residue) > 1:
+        indices = get_indices(residue, molid, density)
+    else:
+        indices = residue
 
     # If it's out of bounds, just return 0
     if indices is None:
