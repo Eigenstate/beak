@@ -78,9 +78,9 @@ def integrate(residue, molid, density):
     """
 
     if len(residue) > 1:
-        indices = get_indices(residue, molid, density)
-    else:
         indices = residue
+    else:
+        indices = get_indices(residue, molid, density)
 
     # If it's out of bounds, just return 0
     if indices is None:
