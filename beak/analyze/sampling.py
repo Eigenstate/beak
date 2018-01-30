@@ -61,26 +61,57 @@ def get_indices(residue, molid, density):
 
 #===============================================================================
 
-def integrate(residue, molid, density):
+def get_indices_from_box(xyz_indices, density):
+    """
+    Gets indices into grid that match xyz coordinates.
+
+    Args:
+        xyz_indices (list of float): [[xmin, xmax], [ymin, ymax], [zmin, zmax]]
+        molid (int): VMD molecule ID
+        density (Grid): Density map to index into
+
+    Returns:
+        (list of int): [[xmin, xmax], [ymin, ymax], [zmin, zmax]]
+            or None if indices were out of bounds
+        """
+    indices = []
+    for aid, axis in enumerate(xyz_indices):
+        # Sanity check it's in the box at all
+        if axis[0] > np.max(density.edges[aid]) or \
+           axis[1] < np.min(density.edges[aid]):
+            return None
+
+        minval = np.min(np.where(density.edges[aid] > axis[0])) - 1
+        maxval = np.max(np.where(density.edges[aid] < axis[1])) + 1
+        indices.append([minval, maxval])
+    return indices
+
+#===============================================================================
+
+def integrate(density, residue=None, molid=None, indices=None):
     """
     Sums the values of the grid covering the given residue.
     First finds the grid indices corresponding to the residue box,
     erring on the side of a larger box (minimum box enclosing residue).
+    Can do manually on indices or around a desired box
 
     Args:
-        residue (int, or 3 tuple): Residue number, or list of indices
-            [[xmin, xmax], [ymin, ymax], [zmin,zmax]]
-        molid (int): VMD molecule ID
         density (Grid): gridData Grid containing ligand density to integrate
+        residue (int): Residue number, if integrating by residue
+        molid (int): VMD molecule ID if integrating by residue
+        indices (list of float): Box dimensions to integrate over, in
+            the format [[xmin, xmax], [ymin, ymax], [zmin,zmax]]
 
     Returns:
         (float): Sum of grid squares residue covers
     """
 
-    if len(residue) > 1:
+    if indices is None and residue and molid:
         indices = get_indices(residue, molid, density)
+    elif indices is not None:
+        indices = get_indices_from_box(indices, density)
     else:
-        indices = residue
+        raise ValueError("Need indices or residue to integrate")
 
     # If it's out of bounds, just return 0
     if indices is None:
