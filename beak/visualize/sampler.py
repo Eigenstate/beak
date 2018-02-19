@@ -384,10 +384,13 @@ class DensitySampler(object):
         Args:
             configfile (str): Configuration file to read generation and
                 file info from
+            generation (int): Generation to load
             prodfiles (list of str): Production files
             clustdir (str): Directory with cluster dx files
             clusters (str): Cluster data pickle path
             msm (str): MSM pickle path
+            scores (str): MSM scores pickle path
+            tica (str): TICA pickle path
             topology (str): One topology for all input files, for DESRES
             load_clusters (bool): Whether clusters should be loaded
         """
