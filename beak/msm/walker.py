@@ -111,7 +111,7 @@ class NaiveWalker(object):
 class AdaptiveWalker(object):
     """
     Walks around adaptively on the graph, building a MSM as it goes.
-    Adaptive samples according to either populations or hub_scores
+    Adaptive samples according to either populations or hub_scores or counts
     """
     def __init__(self, msm, nsteps, criteria, nwalkers, lag=1):
         self.graph = FakeMSM(msm.n_states_)
