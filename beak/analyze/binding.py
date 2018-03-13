@@ -42,7 +42,10 @@ def get_binding_times_thresholded(rmsds, dhigh, dlow):
         # Require starting unbound.
         # This misses binding across adaptive resampling borders.
         # TODO: is it a problem? Superimpose on graphs and check.
-        t = thigh.index.min()
+        #t = thigh.index.min()
+
+        # Always count the first binding event I find
+        t = 0
 
         # We travel strictly forward in time, gathering binding events
         # as we go.
