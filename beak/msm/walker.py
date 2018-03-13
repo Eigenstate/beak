@@ -89,12 +89,13 @@ class NaiveWalker(object):
             for w in range(self.walkers):
                 news = self.graph.sample_steps(state=self.start[w],
                                                n_steps=self.nsteps)
-                found = found or findme in news
-                if sub_generation and found:
+                found = found or (findme in news)
+                if found and sub_generation:
                     self.total += news.index(findme)+1
                     break
-                else:
-                    self.total += self.nsteps
+
+            if not found:
+                self.total += self.nsteps * self.walkers
 
         return self.total
 
@@ -218,14 +219,13 @@ class AdaptiveWalker(object):
                                                n_steps=self.nsteps)
                 self.sampled.append(news)
 
-                found = found or findme in news
+                found = found or (findme in news)
                 if sub_generation and found:
                     self.total += news.index(findme)+1
                     break
-                else:
-                    self.total += self.nsteps
 
             if not found:
+                self.total += self.nsteps * self.walkers
                 self.rebuild_starts()
 
         return self.total
