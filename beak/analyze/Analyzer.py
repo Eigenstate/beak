@@ -22,7 +22,6 @@ Boston, MA 02111-1307, USA.
 from __future__ import print_function
 import math
 import matplotlib
-matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import numpy
 
