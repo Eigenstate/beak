@@ -5,7 +5,7 @@ Does reimaging as a standalone python script
 import argparse
 import os
 import sys
-from beak.reimagers import reimage
+from beak.reimagers import reimage, reimage_mdstep
 
 if __name__ == "__main__":
     # Process args
@@ -28,16 +28,27 @@ if __name__ == "__main__":
                         metavar="<selection>",
                         help="Atom selection mask for stripped residues. New prmtop "
                              "will be saved as <psf>_stripped.prmtop")
+    parser.add_argument("--mdstep", dest="mdstep", default=False,
+                        action="store_true",
+                        help="Mdstep style all files in one directory")
+    parser.add_argument("--base-directory", dest="basedir", default=os.getcwd(),
+                        metavar="<basedir>",
+                        help="Replicates will be found from this directory.")
+
 
     opts = parser.parse_args(sys.argv[1:])
 
-    os.environ["PATH"] = "%s:%s" % (os.path.join(os.environ["PI_HOME"], "software",
-                                                 "amber_dev", "bin"), os.environ["PATH"])
-    os.environ["AMBERHOME"] = os.path.join(os.environ["PI_HOME"], "software", "amber_dev")
-    reimage(psf=opts.psf,
-            revision=opts.revision,
-            skip=opts.skip,
-            alleq=opts.alleq,
-            align=opts.align,
-            stripmask=opts.strip)
-
+    if opts.mdstep:
+        reimage_mdstep(basedir=opts.basedir,
+                       skip=opts.skip,
+                       alleq=opts.alleq,
+                       align=opts.align,
+                       stripmask=opts.strip)
+    else:
+        reimage(basedir=opts.basedir,
+                psf=opts.psf,
+                revision=opts.revision,
+                skip=opts.skip,
+                alleq=opts.alleq,
+                align=opts.align,
+                stripmask=opts.strip)
