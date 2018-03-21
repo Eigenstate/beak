@@ -114,7 +114,11 @@ class Grapher(object):
             nodelist (list of int): Nodes to visualize, or None for all
         """
 
-        graph = nx.Graph(incoming_graph_data=self.msm.transmat_)
+        if nx.__version__ >= "2.1":
+            graph = nx.Graph(incoming_graph_data=self.msm.transmat_)
+        else:
+            graph = nx.Graph(data=self.msm.transmat_)
+
         node_size = np.log(self.msm.populations_)
         node_size = [i-min(node_size)+5 for i in node_size]
         # Decrease size of solvent cluster
@@ -127,6 +131,7 @@ class Grapher(object):
 
         if nodelist is None:
             nodelist = graph.nodes()
+
         xy = np.asarray([pos[v] for v in nodelist])
 
         for i in range(len(nodelist)):
