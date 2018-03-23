@@ -186,7 +186,7 @@ def load_trajectory(filename, **kwargs):
     Args:
         filename (str): The reimaged trajectory file to load
         molid (int): Molecule ID to load trajectory into, or None for new molid
-        skip (int): Stride to load, defaults to 1
+        stride (int): Stride to load, defaults to 1
         config (str): Path to configfile to parse for following args
 
         For manually specifying many options:
@@ -203,7 +203,7 @@ def load_trajectory(filename, **kwargs):
     # Process options that wouldn't be in a config file
     topology = kwargs.get("topology", None)
     frame = kwargs.get("frame", None)
-    skip = kwargs.get("skip", 1)
+    stride = kwargs.get("stride", 1)
     # Set up alignment stuff. Prefer to use config file
     if kwargs.get("config"):
         if isinstance(kwargs.get("config"), str):
@@ -250,12 +250,12 @@ def load_trajectory(filename, **kwargs):
     # Load the trajectory in
     fmt = get_trajectory_format(filename)
     if frame is None:
-        molecule.read(mid, fmt, filename, waitfor=-1, skip=skip)
+        molecule.read(mid, fmt, filename, waitfor=-1, skip=stride)
     elif isinstance(frame, int):
         molecule.read(mid, fmt, filename, beg=frame, end=frame, waitfor=-1)
     elif len(frame) == 2:
         molecule.read(mid, fmt, filename, beg=frame[0], end=frame[1],
-                      waitfor=-1, skip=skip)
+                      waitfor=-1, skip=stride)
     else:
         raise ValueError("I don't understand loading frames: %s" % frame)
 

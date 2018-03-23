@@ -44,6 +44,7 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
             reference (str): Path to reference structure for alignment
             rootdir (str): Root directory containing files etc
             alignsel (str): String for alignment on reference structure
+            skip (int): Stride for loading, defaults to 1
         """
         self.prodfiles = prodfiles
         self.clusters = clusters
@@ -68,6 +69,7 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
             refname = kwargs.get("reference")
             self.refsel = kwargs.get("alignsel")
             self.psfsel = kwargs.get("alignsel")
+        self.stride = int(kwargs.get("skip", "1"))
 
 
         # Precalculate box edges
@@ -93,7 +95,7 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
         elif "psf" in refname:
             self.refid = molecule.load("psf", refname,
                                        "pdb", refname.replace("psf", "pdb"))
-            self.aselref= atomsel(self.psfsel, molid=self.refid)
+            self.aselref = atomsel(self.psfsel, molid=self.refid)
         else:
             raise ValueError("Unknown format of reference file %s" % refname)
 
@@ -162,7 +164,8 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
                                       psfref=self.psfsel,
                                       prmref=self.refsel,
                                       frame=(0, maxframe),
-                                      topology=self.topology)
+                                      topology=self.topology,
+                                      stride=self.stride)
 
         # Get residue number for each ligand
         ligids = sorted(set(atomsel("resname %s" % " ".join(self.lignames),
@@ -346,8 +349,9 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
     def __init__(self, prodfiles, clusters, **kwargs):
         """
         Args:
-            trajfiles (list of str): Trajectory files
+            prodfiles (list of str): Trajectory files
             clusters (list of ndarray): Cluster data
+
             config (ConfigParser): Config file with other system information, will
                 read info from this if possible
             maxframes (list of int): Number of frames to read from each file
@@ -357,6 +361,7 @@ class ParallelClusterDensity(object): #pylint: disable=too-many-instance-attribu
             reference (str): Path to reference structure for alignment
             rootdir (str): Root directory containing files etc
             alignsel (str): String for alignment on reference structure
+            stride (int): Stride for loading trajectories. Defaults to 1 (all)
         """
         self.prodfiles = prodfiles
         self.clusters = clusters

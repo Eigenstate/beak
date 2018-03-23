@@ -546,9 +546,6 @@ class DensitySampler(object):
         # Load and align this frame
         m2 = utils.load_trajectory(filename,
                                    config=self.config,
-                                   #aselref=self.aselref,
-                                   #psfref=self.psfsel,
-                                   #prmref=self.prmsel,
                                    frame=frameindex,
                                    topology=topology,
                                    molid=molid)
