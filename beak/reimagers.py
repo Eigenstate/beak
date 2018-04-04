@@ -170,7 +170,7 @@ def reimage_single_dir(topology, replicate, revision, skip, alleq, align,
         lastnum = "Eq6"
 
     # Set output file names
-    rprefix = "Reimaged_strip" if stripmask else "Reimaged_"
+    rprefix = "Reimaged_strip" if stripmask else "Reimaged"
     ofile = os.path.join(proddir, "%s_Eq%d_to_%s_skip_%s.nc"
                          % (rprefix, 1 if alleq else 6,
                             lastnum, skip))
