@@ -3,6 +3,7 @@ Contains useful utilities for running MSMs
 """
 from __future__ import print_function
 import os
+import stat
 from glob import glob
 import pickle
 import h5py
@@ -39,6 +40,10 @@ def save_tica_h5(tica, filename, overwrite=False):
                            data=data)
 
     h5f.close()
+
+    # Change permissions to be read only
+    if not overwrite:
+        os.chmod(filename, stat.S_IRUSR)
 
 #==============================================================================
 
@@ -103,6 +108,11 @@ def save_features_h5(dataset, filename, num_ligands=0, trajfiles=None,
             h5f[str(i)].attrs["filename"] = trajfiles[i/num_ligands]
 
     h5f.close()
+
+    # Change permissions to be read only
+    if not overwrite:
+        os.chmod(filename, stat.S_IRUSR)
+
     return True
 
 #==============================================================================
@@ -338,12 +348,16 @@ def load(filename):
 
 #==============================================================================
 
-def dump(thing, filename):
+def dump(thing, filename, overwrite=False):
     """
     Provide load and dump together for simplicity
     """
-    return pickle.dump(thing, open(filename, 'wb'),
-                       protocol=pickle.HIGHEST_PROTOCOL)
+    pickle.dump(thing, open(filename, 'wb'),
+                protocol=pickle.HIGHEST_PROTOCOL)
+
+    # Change permissions to be read only
+    if not overwrite:
+        os.chmod(filename, stat.S_IRUSR)
 
 #==============================================================================
 
