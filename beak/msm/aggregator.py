@@ -44,7 +44,7 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
             reference (str): Path to reference structure for alignment
             rootdir (str): Root directory containing files etc
             alignsel (str): String for alignment on reference structure
-            skip (int): Stride for loading, defaults to 1
+            stride (int): Stride for loading, defaults to 1
         """
         self.prodfiles = prodfiles
         self.clusters = clusters
@@ -69,7 +69,7 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
             refname = kwargs.get("reference")
             self.refsel = kwargs.get("alignsel")
             self.psfsel = kwargs.get("alignsel")
-        self.stride = int(kwargs.get("skip", "1"))
+        self.stride = int(kwargs.get("stride", "1"))
 
 
         # Precalculate box edges
