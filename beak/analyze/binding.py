@@ -5,6 +5,31 @@ Contains methods for counting binding events
 import pandas as pd
 import numpy as np
 
+#===============================================================================
+
+def get_time_bound(rmsds, threshold, dt, maxtime):
+    """
+    Obtains the total time in the bound state over time.
+
+    Args:
+        rmsds (Pandas DataFrame): RMSD values, with index as time. Must
+            have integer index as otherwise things are impossible.
+        threshold (float): RMSD value below which ligand is considered bound
+        dt (int): Time chunks
+        maxtime (int): Maximum time to return
+
+    Returns:
+        (Pandas Series): Number of frames with bound, over time, with time
+            chunked into dt sized chunks.
+    """
+    allbound = rmsds[rmsds <= threshold]
+    counts = []
+    for i in range(0, maxtime, dt):
+        counts.append(allbound.loc[i:dt+i].count().sum())
+    return pd.Series(counts, index=range(0, maxtime, dt))
+
+#===============================================================================
+
 def get_binding_times_thresholded(rmsds, dhigh, dlow):
     """
     Obtains the times at which binding events occur.
@@ -15,7 +40,7 @@ def get_binding_times_thresholded(rmsds, dhigh, dlow):
         rmsd (Pandas DataFrame): RMSD values, with index as time. Must
             have integer index because otherwise things are impossible.
         dhigh (float): RMSD value above which ligand is considered unbound
-        dlow (float): RMSD value above which ligand is considered bound
+        dlow (float): RMSD value below which ligand is considered bound
 
     Returns:
         (numpy ndarray): List of times at which a binding event occurred
@@ -42,10 +67,14 @@ def get_binding_times_thresholded(rmsds, dhigh, dlow):
         # Require starting unbound.
         # This misses binding across adaptive resampling borders.
         # TODO: is it a problem? Superimpose on graphs and check.
-        #t = thigh.index.min()
+        t = thigh.index.min()
 
-        # Always count the first binding event I find
-        t = 0
+        ## Always count the first binding event I find
+        #t = 0
+
+        ## But, don't count if we start in the bound pose
+        #if tlow.index().min() == rmsds[key].dropna().index().min():
+        #    t = thigh.index.min()
 
         # We travel strictly forward in time, gathering binding events
         # as we go.
@@ -62,3 +91,5 @@ def get_binding_times_thresholded(rmsds, dhigh, dlow):
                 break
 
     return np.asarray(btimes)
+
+#===============================================================================
