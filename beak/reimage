@@ -10,31 +10,62 @@ from beak.reimagers import reimage, reimage_mdstep
 if __name__ == "__main__":
     # Process args
     parser = argparse.ArgumentParser(prog="reimage")
-    parser.add_argument("-p", "--psf", dest="psf", metavar="<psf>", type=str,
-                        required=True, help="PSF file for simulated system")
-    parser.add_argument("-r", "--revision", dest="revision",
-                        metavar="<revision>", type=str, required=True,
-                        help="Simulation revision number")
-    parser.add_argument("--every", dest="skip", metavar="<N>",
-                        type=int, default=1, help="Save every Nth frame. Defaults"
-                        " to all frames")
-    parser.add_argument("--equilibration", dest="alleq", default=False,
-                        action="store_true", help="Include equilibration trajectories "
+    parser.add_argument("--every",
+                        dest="skip",
+                        default=1,
+                        type=int,
+                        metavar="<N>",
+                        help="Save every Nth frame. Defaults to all frames")
+
+    parser.add_argument("--equilibration",
+                        dest="alleq",
+                        default=False,
+                        action="store_true",
+                        help="Include equilibration trajectories "
                         "in final reimaged file. Defaults to False.")
-    parser.add_argument("--align", dest="align", default=False,
-                        action="store_true", help="Align frames to input coordinates. "
-                        "Defaults to false.")
-    parser.add_argument("--strip", dest="strip", type=str, default=None,
+
+    parser.add_argument("--align",
+                        dest="align",
+                        default=False,
+                        action="store_true",
+                        help="Align frames to input coordinates.")
+
+    parser.add_argument("--strip",
+                        dest="strip",
+                        default=None,
+                        type=str,
                         metavar="<selection>",
                         help="Atom selection mask for stripped residues. New prmtop "
                              "will be saved as <psf>_stripped.prmtop")
-    parser.add_argument("--mdstep", dest="mdstep", default=False,
-                        action="store_true",
-                        help="Mdstep style all files in one directory")
-    parser.add_argument("--base-directory", dest="basedir", default=os.getcwd(),
+
+    parser.add_argument("--base-directory",
+                        dest="basedir",
+                        default=os.getcwd(),
                         metavar="<basedir>",
                         help="Replicates will be found from this directory.")
 
+    parser.add_argument("-p",
+                        "--psf",
+                        dest="psf",
+                        default="system.psf",
+                        type=str,
+                        metavar="<psf>",
+                        help="PSF file for simulated system")
+
+    # Mdstep vs submit_new choice
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("-r",
+                       "--revision",
+                       dest="revision",
+                       metavar="<revision>",
+                       type=str,
+                       help="Simulation revision number for submit_new")
+
+    group.add_argument("--mdstep",
+                       dest="mdstep",
+                       default=False,
+                       action="store_true",
+                       help="Assume mdstep style: all files in one directory")
 
     opts = parser.parse_args(sys.argv[1:])
 
