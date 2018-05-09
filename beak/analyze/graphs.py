@@ -36,7 +36,7 @@ def plot_rmsd_adaptive(rmsds, maxgen, genlen, btimes=None,
 
     fig = plt.figure(figsize=(20, 5), dpi=300)
     ax = fig.gca()
-    for gen in range(1, maxgen):
+    for gen in range(1, maxgen+1):
         for k in data[[_ for _ in data if "G%d_" % gen in _]]:
             if not len(data[k]): continue
             ax.plot(data[k].index/1000.,
@@ -49,8 +49,9 @@ def plot_rmsd_adaptive(rmsds, maxgen, genlen, btimes=None,
     # Show binding times
     if btimes is not None:
         for b in btimes:
-            ax.arrow(x=b/1000., y=cutoff, dx=0, dy=-1, color="black", width=1.5,
-                     length_includes_head=True, head_length=0.25, zorder=2)
+            ax.arrow(x=b/1000., y=cutoff, dx=0, dy=-1, color="black", width=5,
+                     length_includes_head=True, head_length=0.40,
+                     head_width=20, zorder=2)
 
     # Show vertical lines each resampling event, but just a tic at the top
     ax.grid(which="minor", axis="x")
@@ -58,15 +59,19 @@ def plot_rmsd_adaptive(rmsds, maxgen, genlen, btimes=None,
 
     ax.set_xlim([0, xmax])
     ax.set_ylim([0, cutoff])
-    ax.set_xlabel("Time (ns)")
-    ax.set_ylabel("RMSD to bound pose (A)")
+    # Hide axis labels because I am going to add them back in later
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+#    ax.set_xlabel("Time (ns)")
+#    ax.set_ylabel("RMSD to bound pose (A)")
 
     return fig
 
 #===============================================================================
 
 def plot_rmsd_traditional(rmsds, maxtime, btimes=None,
-                          colfg=None, colbg=None, cutoff=7):
+                          colfg=None, colbg=None, cutoff=7,
+                          genlen=None):
     """
     Plots a traditional MD graph, all pretty
 
@@ -78,6 +83,7 @@ def plot_rmsd_traditional(rmsds, maxtime, btimes=None,
         colfg (3 tuple): Foreground graph color
         colbg (3 tuple): Background graph color
         cutoff (float): Maximum angstroms to show on y axis
+        genlen (int): Generation size, for xtics
 
     Returns:
         (matplotlib Figure): the graph
@@ -97,13 +103,18 @@ def plot_rmsd_traditional(rmsds, maxtime, btimes=None,
 
     if btimes is not None:
         for b in btimes:
-            ax.arrow(x=b/1000., y=cutoff, dx=0, dy=-1, color="black", width=1.5,
-                     length_includes_head=True, head_length=0.25, zorder=2)
+            ax.arrow(x=b/1000., y=cutoff, dx=0, dy=-1, color="black", width=5,
+                     length_includes_head=True, head_length=0.40,
+                     head_width=20, zorder=2)
 
     ax.set_xlim([0, maxtime])
     ax.set_ylim([0, cutoff])
-    ax.set_xlabel("Time (ns)")
-    ax.set_ylabel("RMSD to bound pose (A)")
+    ax.set_xticks(np.arange(1, maxtime, genlen), minor=True) # Same tics
+    # Hide axis labels because I am going to add them back in later
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+#    ax.set_xlabel("Time (ns)")
+#    ax.set_ylabel("RMSD to bound pose (A)")
 
     return fig
 
