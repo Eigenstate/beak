@@ -282,7 +282,7 @@ def reimage_single_mdstep(topology, basedir, skip, alleq,
     rems = glob(os.path.join(basedir, "%s_Eq%d_to_*_skip_%s.nc"
                              % (rprefix, 1 if alleq else 6, skip)))
     for r in rems:
-        if os.path.getmtime(r) > os.path.getmtime(prods[-1]):
+        if os.path.getmtime(r) < os.path.getmtime(prods[-1]):
             print("Removing: %s" % r)
             sys.stdout.flush()
             os.remove(r)
@@ -357,7 +357,7 @@ def reimage_mdstep(basedir, skip, alleq, align, stripmask=None):
     if not replicate_dirs:
         raise ValueError("No replicate directories in '%s' "
                          "Each replicate directory needs a system.psf to be "
-                         "present to be correctly identified")
+                         "present to be correctly identified" % basedir)
 
     p = Pool(int(os.environ.get("SLURM_NTASKS", "1")))
     p.starmap(reimage_single_mdstep, [(os.path.join(d, "system.psf"), d,
