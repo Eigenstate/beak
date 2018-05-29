@@ -4,6 +4,7 @@ Does reimaging as a standalone python script
 """
 import argparse
 import os
+import subprocess
 import sys
 from beak.reimagers import reimage, reimage_mdstep
 
@@ -52,6 +53,14 @@ if __name__ == "__main__":
                         metavar="<psf>",
                         help="PSF file for simulated system")
 
+    # Option to submit as slurm job
+    parser.add_argument("--ntasks",
+                        dest="ntasks",
+                        default=0,
+                        type=int,
+                        metavar="<slurm tasks>",
+                        help="Run in the queue with this many cores")
+
     # Mdstep vs submit_new choice
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("-r",
@@ -68,6 +77,26 @@ if __name__ == "__main__":
                        help="Assume mdstep style: all files in one directory")
 
     opts = parser.parse_args(sys.argv[1:])
+
+    # Submit as slurm job without ntasks argument so it's not circular
+    if opts.ntasks > 0:
+        idx = sys.argv.index("--ntasks")
+        newargs = " ".join(sys.argv[:idx] + sys.argv[idx+2:])
+        print(" ".join(["sbatch", "-p", "rondror",
+                                   "--tasks=%d" % opts.ntasks,
+                                   "--cpus-per-task=1",
+                                   "--job-name=reimage",
+                                   "--time=2:00:00",
+                                   "--wrap=\"%s\"" % newargs
+                                   ]))
+        subprocess.call(" ".join(["sbatch", "-p", "rondror",
+                                   "--tasks=%d" % opts.ntasks,
+                                   "--cpus-per-task=1",
+                                   "--job-name=reimage",
+                                   "--time=2:00:00",
+                                   "--wrap=\"%s\"" % newargs
+                                   ]), shell=True)
+        sys.exit(0)
 
     if opts.mdstep:
         reimage_mdstep(basedir=opts.basedir,
