@@ -13,7 +13,8 @@ from matplotlib import pyplot as plt
 #===============================================================================
 
 def plot_rmsd_adaptive(rmsds, maxgen, genlen, btimes=None,
-                       colfg=None, colbg=None, cutoff=7):
+                       colfg=None, colbg=None, cutoff=7,
+                       arrow_width=7, arrow_head_width=15):
     """
     Plots an adaptive graph, all pretty
 
@@ -26,6 +27,8 @@ def plot_rmsd_adaptive(rmsds, maxgen, genlen, btimes=None,
         colfg (3 tuple): Foreground graph color
         colbg (3 tuple): Background graph color
         cutoff (float): Maximum Angstroms to show
+        arrow_width (int): Width of arrow line
+        arrow_head_width (int): Width of arrow head
 
     Returns:
         (matplotlib figure): The graph
@@ -49,9 +52,9 @@ def plot_rmsd_adaptive(rmsds, maxgen, genlen, btimes=None,
     # Show binding times
     if btimes is not None:
         for b in btimes:
-            ax.arrow(x=b/1000., y=cutoff, dx=0, dy=-1, color="black", width=5,
-                     length_includes_head=True, head_length=0.40,
-                     head_width=20, zorder=2)
+            ax.arrow(x=b/1000., y=cutoff, dx=0, dy=-1, color="black",
+                     width=arrow_width, length_includes_head=True,
+                     head_length=0.40, head_width=arrow_head_width, zorder=2)
 
     # Show vertical lines each resampling event, but just a tic at the top
     ax.grid(which="minor", axis="x")
@@ -71,7 +74,7 @@ def plot_rmsd_adaptive(rmsds, maxgen, genlen, btimes=None,
 
 def plot_rmsd_traditional(rmsds, maxtime, btimes=None,
                           colfg=None, colbg=None, cutoff=7,
-                          genlen=None):
+                          genlen=None, arrow_width=7, arrow_head_width=15):
     """
     Plots a traditional MD graph, all pretty
 
@@ -84,6 +87,8 @@ def plot_rmsd_traditional(rmsds, maxtime, btimes=None,
         colbg (3 tuple): Background graph color
         cutoff (float): Maximum angstroms to show on y axis
         genlen (int): Generation size, for xtics
+        arrow_width (int): Width of arrow line
+        arrow_head_width (int): Width of arrow head
 
     Returns:
         (matplotlib Figure): the graph
@@ -103,9 +108,9 @@ def plot_rmsd_traditional(rmsds, maxtime, btimes=None,
 
     if btimes is not None:
         for b in btimes:
-            ax.arrow(x=b/1000., y=cutoff, dx=0, dy=-1, color="black", width=5,
-                     length_includes_head=True, head_length=0.40,
-                     head_width=20, zorder=2)
+            ax.arrow(x=b/1000., y=cutoff, dx=0, dy=-1, color="black",
+                     width=arrow_width, length_includes_head=True,
+                     head_length=0.40, head_width=arrow_head_width, zorder=2)
 
     ax.set_xlim([0, maxtime])
     ax.set_ylim([0, cutoff])
