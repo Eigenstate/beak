@@ -37,7 +37,8 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
             clusters (list of ndarray): Cluster data
             config (ConfigParser): Config file with other system information, will
                 read info from this if possible
-            maxframes (list of int): Number of frames to read from each file
+            maxframes (int or list of int): Number of frames to read
+                from each file
             topology (str): Single topology to use for all frames
             dimensions (list of 3 floats): System box size
             ligands (list of str): Ligand residue names
@@ -156,7 +157,13 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
         # Load the trajectory
         assert trajfile in self.prodfiles
         trajidx = self.prodfiles.index(trajfile)
-        maxframe = -1 if self.maxframes is None else self.maxframes[trajidx]-1
+
+        if isinstance(self.maxframes, int):
+            maxframe = self.maxframes-1
+        elif self.maxframes is None:
+            maxframe = -1
+        else:
+            maxframe = self.maxframes[trajidx]-1
 
         molid = utils.load_trajectory(trajfile,
                                       rootdir=self.rootdir,
