@@ -10,6 +10,7 @@ import h5py
 import random
 import numpy as np
 from configparser import ConfigParser
+from msmbuilder import tpt
 from vmd import atomsel, molecule
 
 #==============================================================================
@@ -478,5 +479,29 @@ def get_frame(cluster, dataset, nligs):
     ligidx = clustindex % nligs
 
     return (fileindex, frameindex, ligidx)
+
+#==========================================================================
+
+def get_pathways(rootdir, generation, boundcoords):
+    """
+    Gets pathways to bound state. Assumes some files exist.
+    """
+
+    vars = load(os.path.join(rootdir, "clusters", str(generation),
+                                   "variance.pkl"))
+    msm = load(os.path.join(rootdir, "production", str(generation),
+                            "mmsm_G%d.pkl" % generation))
+    rmsds = get_rmsd_to(os.path.join(rootdir, "clusters",
+                                     str(generation), "means.pkl"), boundcoords)
+
+    bound_states = sorted(rmsds, key=lambda x: rmsds[x] \
+                          * (500 if np.mean(vars[x]) > 4 else 1))
+    print("Bound state = %d" % bound_states[0])
+
+    solvent = msm.inverse_transform([np.argmax(msm.populations_)])[0][:3]
+    fluxes = tpt.net_fluxes(sources=solvent, sinks=bound_states[0], msm=msm)
+    paths, _ = tpt.paths(sources=solvent, sinks=bound_states[0],
+                         net_flux=fluxes, remove_path="subtract")
+    return paths
 
 #==========================================================================
