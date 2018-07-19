@@ -647,3 +647,23 @@ class DensitySampler(object):
 
     #==========================================================================
 
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+def load_generation(generation):
+    """
+    Loads up a generation in VMD. Uses default locations for all stuff.
+    Assumes you're in the directory where sampler.cfg is.
+    """
+    samp = DensitySampler(configfile="sampler.cfg",
+                          generation=generation,
+                          clustdir=os.path.join("clusters", str(generation)),
+                          clusters=os.path.join("production", str(generation),
+                                                "testing.mcluster.pkl"),
+                          msm=os.path.join("production", str(generation),
+                                           "mmsm_G%d.pkl" % generation),
+                          scores=os.path.join("production", str(generation),
+                                              "mmsm_scores.pkl"),
+                         )
+    return samp
+
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
