@@ -33,7 +33,7 @@ class ClusterDensity(object): #pylint: disable=too-many-instance-attributes
     def __init__(self, prodfiles, clusters, **kwargs):
         """
         Args:
-            trajfiles (list of str): Trajectory files
+            prodfiles (list of str): Trajectory files
             clusters (list of ndarray): Cluster data
             config (ConfigParser): Config file with other system information, will
                 read info from this if possible
