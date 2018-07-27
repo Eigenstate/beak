@@ -81,7 +81,7 @@ if __name__ == "__main__":
     # Submit as slurm job without ntasks argument so it's not circular
     if opts.ntasks > 0:
         idx = sys.argv.index("--ntasks")
-        newargs = " ".join(sys.argv[:idx] + sys.argv[idx+2:])
+        newargs = " ".join("'%s'" % _ for _  in sys.argv[:idx] + sys.argv[idx+2:])
         print(" ".join(["sbatch", "-p", "rondror",
                                    "--tasks=%d" % opts.ntasks,
                                    "--cpus-per-task=1",
