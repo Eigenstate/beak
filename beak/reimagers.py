@@ -181,7 +181,7 @@ def reimage_single_dir(topology, replicate, revision, skip, alleq, align,
     rems = glob(os.path.join(proddir, "%s_Eq%d_to_*_skip_%s.nc"
                              % (rprefix, 1 if alleq else 6, skip)))
     for r in rems:
-        if os.path.getmtime(r) > os.path.getmtime(prods[-1]):
+        if os.path.getmtime(r) < os.path.getmtime(prods[-1]):
             print("Removing: %s" % r)
             sys.stdout.flush()
             os.remove(r)
