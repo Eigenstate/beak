@@ -158,7 +158,8 @@ def reimage_single_dir(topology, replicate, revision, skip, alleq, align,
                                                "").replace(".nc", "")))
     prods = [x for x in prods if "Reimaged" not in x]
 
-    if check_empty(os.path.join(proddir, "Eq_6.nc")):
+    if check_empty(os.path.join(proddir, "Eq_6.nc")) and \
+       check_empty(os.path.join(proddir, "Eq_unrestrained.nc")):
         print("NO production simulation in Rev %s Rep %s" % (revision, replicate))
         return None
 
@@ -167,19 +168,26 @@ def reimage_single_dir(topology, replicate, revision, skip, alleq, align,
         lastnum = prods[-1].replace(os.path.join(proddir,
                                                  "Prod_"), "").replace(".nc", "")
     else:
-        lastnum = "Eq6"
+        lastnum = "EqU"
 
     # Set output file names
     rprefix = "Reimaged_strip" if stripmask else "Reimaged"
-    ofile = os.path.join(proddir, "%s_Eq%d_to_%s_skip_%s.nc"
-                         % (rprefix, 1 if alleq else 6,
+    ofile = os.path.join(proddir, "%s_Eq%s_to_%s_skip_%s.nc"
+                         % (rprefix, "1" if alleq else "U",
                             lastnum, skip))
 
     # If reimaged output exists, only continue if latest production
     # file has been updated since then. Delete all matching reimaged
     # files that are older so directories aren't cluttered up.
-    rems = glob(os.path.join(proddir, "%s_Eq%d_to_*_skip_%s.nc"
-                             % (rprefix, 1 if alleq else 6, skip)))
+    if alleq:
+        rems = glob(os.path.join(proddir, "%s_Eq1_to_*_skip_%s.nc"
+                                 % (rprefix, skip)))
+    # Handle both old and new Eq6_ vs EqU_
+    else:
+        rems = glob(os.path.join(proddir, "%s_Eq6_to_*_skip_%s.nc"
+                                 % (rprefix, skip)))
+        rems.extend(glob(os.path.join(proddir, "%s_EqU_to_*_skip_%s.nc"
+                                 % (rprefix, skip))))
     for r in rems:
         if os.path.getmtime(r) < os.path.getmtime(prods[-1]):
             print("Removing: %s" % r)
@@ -205,8 +213,13 @@ def reimage_single_dir(topology, replicate, revision, skip, alleq, align,
         for e in eqs:
             tempfile.write("trajin %s 1 last %d\n" % (e, int(skip)*8))
 
-    # Last equilibration in
-    tempfile.write("trajin %s 1 last %d\n" % (os.path.join(proddir, "Eq_6.nc"),
+    # Last equilibration in, handle legacy Eq_6 for now
+    if os.path.isfile(os.path.join(proddir, "Eq_6.nc")):
+        fn = "Eq_6.nc"
+    else:
+        fn = "Eq_unrestrained.nc"
+
+    tempfile.write("trajin %s 1 last %d\n" % (os.path.join(proddir, fn),
                                               int(skip)*8))
 
     # Read in production data, reimaged
@@ -259,7 +272,8 @@ def reimage_single_mdstep(topology, basedir, skip, alleq,
                                                "").replace(".nc", "")))
     prods = [x for x in prods if "Reimaged" not in x]
 
-    if check_empty(os.path.join(basedir, "Eq_6.nc")):
+    if check_empty(os.path.join(basedir, "Eq_6.nc")) and \
+       check_empty(os.path.join(basedir, "Eq_unrestrained.nc")):
         print("No production simulation in %s" % basedir)
         return None
 
@@ -268,19 +282,27 @@ def reimage_single_mdstep(topology, basedir, skip, alleq,
         lastnum = prods[-1].replace(os.path.join(basedir,
                                                  "Prod_"), "").replace(".nc", "")
     else:
-        lastnum = "Eq6"
+        lastnum = "EqU"
 
     # Set output file names
     rprefix = "Reimaged_strip" if stripmask else "Reimaged_"
-    ofile = os.path.join(basedir, "%s_Eq%d_to_%s_skip_%s.nc"
-                         % (rprefix, 1 if alleq else 6,
+    ofile = os.path.join(basedir, "%s_Eq%s_to_%s_skip_%s.nc"
+                         % (rprefix, "1" if alleq else "U",
                             lastnum, skip))
 
     # If reimaged output exists, only continue if latest production
     # file has been updated since then. Delete all matching reimaged
     # files that are older so directories aren't cluttered up.
-    rems = glob(os.path.join(basedir, "%s_Eq%d_to_*_skip_%s.nc"
-                             % (rprefix, 1 if alleq else 6, skip)))
+    if alleq:
+        rems = glob(os.path.join(basedir, "%s_Eq1_to_*_skip_%s.nc"
+                                 % (rprefix, skip)))
+    # Handle both old and new Eq6_ vs EqU_
+    else:
+        rems = glob(os.path.join(basedir, "%s_Eq6_to_*_skip_%s.nc"
+                                 % (rprefix, skip)))
+        rems.extend(glob(os.path.join(basedir, "%s_EqU_to_*_skip_%s.nc"
+                                 % (rprefix, skip))))
+
     for r in rems:
         if os.path.getmtime(r) < os.path.getmtime(prods[-1]):
             print("Removing: %s" % r)
@@ -304,7 +326,11 @@ def reimage_single_mdstep(topology, basedir, skip, alleq,
             tempfile.write("trajin %s 1 last %d\n" % (e, int(skip)*8))
 
     # Last equilibration in
-    tempfile.write("trajin %s 1 last %d\n" % (os.path.join(basedir, "Eq_6.nc"),
+    if os.path.isfile(os.path.join(basedir, "Eq_6.nc")):
+        fn = "Eq_6.nc"
+    else:
+        fn = "Eq_unrestrained.nc"
+    tempfile.write("trajin %s 1 last %d\n" % (os.path.join(basedir, fn),
                                               int(skip)*8))
 
     # Read in production data, reimaged
