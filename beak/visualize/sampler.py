@@ -587,6 +587,33 @@ class DensitySampler(object):
 
     #==========================================================================
 
+    def load_file(self, generation, replicate, stride=10):
+        """
+        Loads a production file in VMD. Uses default locations for all stuff.
+        Aligns, too.
+
+        Args:
+            generation (int): Generation to load
+            replicate (int): Replicate to load
+            stride (int): Stride to load
+        """
+
+        prodfile = glob(os.path.join(self.dir, "production", str(generation),
+                                     str(replicate), "Reimaged_strip*.nc"))[0]
+        topology = utils.get_topology(prodfile)
+
+        m = utils.load_trajectory(filename=prodfile,
+                                  stride=stride,
+                                  topology=topology,
+                                  config=self.config)
+
+        # Set representations
+        molrep.addrep(m, style="Licorice 0.3 12.0 12.0",
+                      selection="noh and resname %s" % " ".join(self.ligands),
+                      color="Type", material="AOChalky")
+
+    #==========================================================================
+
     def show_cluster(self, cluster, shown=None):
         """
         Shows all frames and density for the specified cluster
