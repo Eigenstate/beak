@@ -84,6 +84,7 @@ if __name__ == "__main__":
         newargs = " ".join("'%s'" % _ for _  in sys.argv[:idx] + sys.argv[idx+2:])
         print(" ".join(["sbatch", "-p", "rondror",
                                    "--tasks=%d" % opts.ntasks,
+                                   "--qos=high_p",
                                    "--cpus-per-task=1",
                                    "--job-name=reimage",
                                    "--time=2:00:00",
@@ -91,6 +92,7 @@ if __name__ == "__main__":
                                    ]))
         subprocess.call(" ".join(["sbatch", "-p", "rondror",
                                    "--tasks=%d" % opts.ntasks,
+                                   "--qos=high_p",
                                    "--cpus-per-task=1",
                                    "--job-name=reimage",
                                    "--time=2:00:00",

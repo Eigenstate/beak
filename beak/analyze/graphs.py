@@ -34,6 +34,12 @@ def plot_rmsd_adaptive(rmsds, maxgen, genlen, btimes=None,
         (matplotlib figure): The graph
     """
 
+    # set default options
+    if colbg is None:
+        colbg = [0.70, 0.87, 0.54]
+    if colfg is None:
+        colfg = [0.20, 0.63, 0.17]
+
     data = rmsds[rmsds < (cutoff+3.)].dropna(how="all")
     xmax = genlen*maxgen
 
