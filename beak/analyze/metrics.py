@@ -18,7 +18,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 59 Temple Place - Suite 330
 Boston, MA 02111-1307, USA.
 """
-from math import sqrt
+from scipy.spatial import distance
+from vmd import atomsel, vmdnumpy
+import numpy as np
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -37,17 +39,17 @@ def get_distance(x, y):
     Raises:
         ValueError if the arrays are incorrectly sized
     """
+    x = np.asarray(x)
+    y = np.asarray(y)
+
     if len(x) != 3 or len(y) != 3:
         raise ValueError("These aren't valid coordinates!")
 
-    d = (x[0]-y[0])*(x[0]-y[0]) + \
-        (x[1]-y[1])*(x[1]-y[1]) + \
-        (x[2]-y[2])*(x[2]-y[2])
-    return sqrt(d)
+    return np.sqrt(np.sum( (x-y)**2 ))
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-def get_min_distance(sel1, sel2):
+def get_min_distance(sel1, sel2, molid, frame):
     """
     Returns the minimum distance between two atom selections.
 
@@ -58,16 +60,17 @@ def get_min_distance(sel1, sel2):
     Returns:
         float: The minimum distance between the selections
     """
-    sel1x = sel1.get('x')
-    sel1y = sel1.get('y')
-    sel1z = sel1.get('z')
-    sel2x = sel2.get('x')
-    sel2y = sel2.get('y')
-    sel2z = sel2.get('z')
 
-    return min([get_distance((sel1x[i],sel1y[i],sel1z[i]), \
-                             (sel2x[j],sel2y[j],sel2z[j])) \
-                              for i in range(len(sel1)) \
-                              for j in range(len(sel2))])
+    if isinstance(sel1, str):
+        sel1 = atomsel(sel1, molid=molid)
+    if isinstance(sel2, str):
+        sel2 = atomsel(sel2, molid=molid)
+
+    xyz = vmdnumpy.timestep(molid, frame)
+    a1 = xyz[sel1.get("index")]
+    a2 = xyz[sel2.get("index")]
+
+    return np.min(distance.cdist(a1, a2))
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
