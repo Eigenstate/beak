@@ -74,3 +74,25 @@ def get_min_distance(sel1, sel2, molid, frame):
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+def get_mean_distance(sel1, sel2, molid, frame):
+    """
+    Returns the minimum distance between two atom selections.
+
+    Args:
+        sel1 (atomsel): First atom selection
+        sel2 (atomsel): Second atom selection
+
+    Returns:
+        float: The minimum distance between the selections
+    """
+
+    if isinstance(sel1, str):
+        sel1 = atomsel(sel1, molid=molid)
+    if isinstance(sel2, str):
+        sel2 = atomsel(sel2, molid=molid)
+
+    xyz = vmdnumpy.timestep(molid, frame)
+    a1 = xyz[sel1.get("index")]
+    a2 = xyz[sel2.get("index")]
+
+    return np.mean(distance.cdist(a1, a2))
