@@ -62,9 +62,9 @@ def get_min_distance(sel1, sel2, molid, frame):
     """
 
     if isinstance(sel1, str):
-        sel1 = atomsel(sel1, molid=molid)
+        sel1 = atomsel(sel1, molid=molid, frame=frame)
     if isinstance(sel2, str):
-        sel2 = atomsel(sel2, molid=molid)
+        sel2 = atomsel(sel2, molid=molid, frame=frame)
 
     xyz = vmdnumpy.timestep(molid, frame)
     a1 = xyz[sel1.get("index")]
