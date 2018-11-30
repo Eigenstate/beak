@@ -207,6 +207,7 @@ def load_trajectory(filename, **kwargs):
         prmref (str): Atom selection strings for prmtops / altered resids
         frame (int): Single frame to load, or None for all frames, or (beg,end)
         topology (str): Manual topology choice to use, or None for autodetect
+        refid (int): VMD molecule ID of loaded molecule to align to, or None
 
     Returns:
         (int): VMD molecule ID of loaded and aligned trajectory
@@ -230,20 +231,27 @@ def load_trajectory(filename, **kwargs):
                                     rootdir=config["system"]["rootdir"])
 
         # Load reference topology and get relevant atom selection
-        ref = config["system"]["reference"]
+        if "refid" in kwargs:
+            refid = kwargs.get("refid")
+        else:
+            ref = config["system"]["reference"]
+            if "psf" in ref:
+                refid = molecule.load("psf", ref,
+                                      "pdb", ref.replace("psf", "pdb"))
+            elif "prmtop" in ref:
+                refid = molecule.load("parm7", ref,
+                                      "crdbox", ref.replace("prmtop", "inpcrd"))
+
+        # Figure out which selection to use
         psfref = config["system"]["canonical_sel"]
         prmref = config["system"]["refsel"]
-
-        if "psf" in ref:
-            refid = molecule.load("psf", ref,
-                                  "pdb", ref.replace("psf", "pdb"))
-            aselref = atomsel(psfref, molid=refid)
-        elif "prmtop" in ref:
-            refid = molecule.load("parm7", ref,
-                                  "crdbox", ref.replace("prmtop", "inpcrd"))
+        if any("prmtop" in _ for _ in molecule.get_filenames(refid)):
             aselref = atomsel(prmref, molid=refid)
+        elif any("psf" in _ for _ in molecule.get_filenames(refid)):
+            aselref = atomsel(psfref, molid=refid)
         else:
             raise ValueError("Unknown type of reference '%s'" % ref)
+
 
     else: # Legacy... delete TODO
         if topology is None:
@@ -278,16 +286,17 @@ def load_trajectory(filename, **kwargs):
     for frame in range(molecule.numframes(mid)):
         molecule.set_frame(mid, frame)
         framsel.update()
-        try:
-            atomsel("all", molid=mid, frame=frame).move(framsel.fit(aselref))
-        except ValueError:
-            print("Can't align the following molecules:\n%s\n\n%s"
-                  % (", ".join(molecule.get_filenames(mid)),
-                     ", ".join(molecule.get_filenames(refid))))
-            quit(1)
+        #try:
+        atomsel("all", molid=mid, frame=frame).move(framsel.fit(aselref))
+        #except ValueError:
+        #    print("Can't align the following molecules:\n%s\n\n%s"
+        #          % (", ".join(molecule.get_filenames(mid)),
+        #             ", ".join(molecule.get_filenames(refid))))
 
-    if kwargs.get("config"): # Clean up reference molecule
+    # Clean up reference molecule
+    if "refid" not in kwargs:
         molecule.delete(refid)
+
     return mid
 
 #==============================================================================

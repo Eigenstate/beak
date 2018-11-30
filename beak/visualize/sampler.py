@@ -424,8 +424,14 @@ class DensitySampler(object):
         # Hide it
         self.reference = self.config["system"]["reference"]
         if "prmtop" in self.reference:
-            self.refid = molecule.load("parm7", self.reference,
-                    "crdbox", self.reference.replace("prmtop", "inpcrd"))
+            self.refid = molecule.load("parm7", self.reference)
+            # If we have a rst7 file, prefer that
+            if os.path.isfile(self.reference.replace("prmtop", "rst7")):
+                molecule.read(self.refid, "rst7",
+                              self.reference.replace("prmtop", "rst7"))
+            else:
+                molecule.read(self.refid, "crdbox",
+                              self.reference.replace("prmtop", "inpcrd"))
         elif "psf" in self.reference:
             self.refid = molecule.load("psf", self.reference,
                     "pdb", self.reference.replace("psf", "pdb"))
@@ -548,7 +554,8 @@ class DensitySampler(object):
                                    config=self.config,
                                    frame=frameindex,
                                    topology=topology,
-                                   molid=molid)
+                                   molid=molid,
+                                   refid=self.refid)
         molecule.set_visible(m2, molecule.get_visible(self.molids[cluster][0]))
         if m2 not in self.molids[cluster]:
             self.molids[cluster].append(m2)
