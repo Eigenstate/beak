@@ -54,6 +54,10 @@ def check_empty(filename):
     if not os.path.isfile(filename):
         return True
 
+    # Assume dcd files are file for now
+    if os.path.splitext(filename)[1] == ".dcd":
+        return False
+
     checker = subprocess.Popen(["ncdump", "-h", filename],
                                stdout=subprocess.PIPE)
     output = checker.stdout.read()
@@ -392,3 +396,123 @@ def reimage_mdstep(basedir, skip, alleq, align, stripmask=None):
     p.close()
 
 #==============================================================================
+
+def reimage_single_openmm(topology, basedir, skip, alleq,
+                          align, stripmask=None):
+    """
+    Reimages a trajectory that is contained entirely in one directory
+    with the "prod.dcd" naming convention associated with openmm runs.
+
+    Args:
+        topology (str): Topology filename
+        basedir (str): Directory containing all files
+        skip (int): Stride for outputting frames
+        alleq (bool): True to include all the equilibration, too
+        align (bool): True to align all frames to first one
+        stripmask (str): Amber-style atom selection of atoms to omit
+            from the reimaged trajectory
+
+    Returns:
+        0 on success
+    """
+    # Enumerate production files
+    prod = os.path.join(basedir, "prod.dcd")
+
+    if check_empty(os.path.join(basedir, "equil.dcd")):
+        print("No production simulation in %s" % basedir)
+        return None
+
+    # Get number of last production file
+    lastnum = "Eq"
+    if os.path.isfile(prod):
+        lastnum = "EqProd" if alleq else "Prod"
+
+    # Set output file names
+    rprefix = "Reimaged_strip" if stripmask else "Reimaged"
+    ofile = os.path.join(basedir, "%s_%s_skip_%s.nc"
+                         % (rprefix, lastnum, skip))
+
+    # If reimaged output exists, only continue if latest production
+    # file has been updated since then. Delete all matching reimaged
+    # files that are older so directories aren't cluttered up.
+    rems = glob(os.path.join(basedir, "%s_*_skip_%s.nc" % (rprefix, skip)))
+
+    for r in rems:
+        if os.path.getmtime(r) < os.path.getmtime(prod):
+            print("Removing: %s" % r)
+            sys.stdout.flush()
+            os.remove(r)
+
+    # Now write cpptraj input
+    tempfile = open(os.path.join(basedir, "tempfile"), 'w')
+
+    topoprefix = ".".join(topology.split(".")[:-1])
+    if align:
+        tempfile.write("reference %s.inpcrd parm %s [ref]\n"
+                       % (topoprefix, topology))
+
+    # equilibration if desired
+    if alleq:
+        tempfile.write("trajin equil.dcd 1 last %d\n" % skip)
+
+    # Read in production data, reimaged
+    tempfile.write("trajin %s 1 last %d\n" % (prod, skip))
+
+    protein_residues = get_protein_residues(topology)
+
+    tempfile.write("center origin (:%s)\n" % protein_residues)
+    tempfile.write("image origin center\n")
+
+    if align:
+        tempfile.write("rms toRef ref [ref] @CA\n")
+
+    if stripmask is not None:
+        tempfile.write("strip (%s) parmout %s_stripped.prmtop\n"
+                       % (stripmask, topoprefix))
+    tempfile.write("trajout %s offset %s\n" % (ofile, skip))
+    tempfile.write("go\n")
+    tempfile.close()
+
+    # Returns 0 on success
+    return subprocess.call("%s/bin/cpptraj -p %s -i %s/tempfile" %
+                           (os.environ['AMBERHOME'], topology, basedir),
+                           shell=True)
+
+#==============================================================================
+
+def reimage_openmm(basedir, topology, skip, alleq, align, stripmask=None):
+    """
+    Reimages all subdirectories of this one, with openmm conventions
+    for file naming.
+
+    Args:
+        basedir (str): Base directory to collect replicates from
+        topology (str): Topology file for simulation(s)
+        skip (int): Offset
+        alleq (bool): Whether or not to include all equilibration setps
+        align (bool): Whether or not to also align the trajectory
+        stripmask (str): AMBER selection to remove from reimaged trajectory
+
+    Raises:
+        ValueError if no valid replicate directories with system.psf are found
+        ValueError if the cpptraj call fails
+    """
+    # Look in this directory and subdirectories
+    replicate_dirs = [d for d in os.listdir(basedir) \
+                      if os.path.isdir(d) and \
+                      os.path.isfile(os.path.join(d, "equil.dcd"))]
+
+    if os.path.isfile(os.path.join(basedir, "equil.dcd")):
+        replicate_dirs.extend(basedir)
+
+    # Error checking
+    if not replicate_dirs:
+        raise ValueError("No replicate directories in '%s' "
+                         "Each replicate directory needs a equil.dcd to be "
+                         "present to be correctly identified" % basedir)
+
+    p = Pool(int(os.environ.get("SLURM_NTASKS", "1")))
+    p.starmap(reimage_single_openmm, [(topology, d, skip, alleq, align,
+                                       stripmask) for d in replicate_dirs])
+    p.close()
+

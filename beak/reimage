@@ -6,7 +6,7 @@ import argparse
 import os
 import subprocess
 import sys
-from beak.reimagers import reimage, reimage_mdstep
+from beak.reimagers import reimage, reimage_mdstep, reimage_openmm
 
 if __name__ == "__main__":
     # Process args
@@ -76,6 +76,12 @@ if __name__ == "__main__":
                        action="store_true",
                        help="Assume mdstep style: all files in one directory")
 
+    group.add_argument("--openmm",
+                       dest="openmm",
+                       default=False,
+                       action="store_true",
+                       help="Assume openmm style: all data in prod.dcd")
+
     opts = parser.parse_args(sys.argv[1:])
 
     # Submit as slurm job without ntasks argument so it's not circular
@@ -102,6 +108,13 @@ if __name__ == "__main__":
 
     if opts.mdstep:
         reimage_mdstep(basedir=opts.basedir,
+                       skip=opts.skip,
+                       alleq=opts.alleq,
+                       align=opts.align,
+                       stripmask=opts.strip)
+    elif opts.openmm:
+        reimage_openmm(basedir=opts.basedir,
+                       topology=opts.psf,
                        skip=opts.skip,
                        alleq=opts.alleq,
                        align=opts.align,
